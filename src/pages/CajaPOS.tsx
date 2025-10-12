@@ -3,6 +3,7 @@ import type { Product, Shift } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { productsService, shiftsService, transactionsService } from '../services/api';
 import { ShoppingCart, LogOut, DollarSign } from 'lucide-react';
+import CloseShiftModal from '../components/CloseShiftModal';
 
 export default function CajaPOS() {
   const user = useAuthStore((state) => state.user);
@@ -13,6 +14,7 @@ export default function CajaPOS() {
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'transfer' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
+  const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -107,6 +109,12 @@ export default function CajaPOS() {
     }
   };
 
+  const handleShiftClosed = () => {
+    setShowCloseShiftModal(false);
+    setCurrentShift(null);
+    setCart([]);
+  };
+
   if (!currentShift) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
@@ -142,13 +150,21 @@ export default function CajaPOS() {
             <h1 className="text-xl font-bold text-gray-800">Baños Forum - Caja</h1>
             <p className="text-sm text-gray-600">{user?.name} ({user?.role})</p>
           </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
-          >
-            <LogOut size={20} />
-            Salir
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowCloseShiftModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition"
+            >
+              Cerrar Turno
+            </button>
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+            >
+              <LogOut size={20} />
+              Salir
+            </button>
+          </div>
         </div>
       </header>
 
@@ -258,6 +274,15 @@ export default function CajaPOS() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Cierre de Turno */}
+      {showCloseShiftModal && (
+        <CloseShiftModal
+          shiftId={currentShift.id}
+          onClose={() => setShowCloseShiftModal(false)}
+          onSuccess={handleShiftClosed}
+        />
+      )}
     </div>
   );
 }
