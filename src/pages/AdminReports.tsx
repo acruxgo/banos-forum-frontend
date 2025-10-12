@@ -11,21 +11,17 @@ export default function AdminReports() {
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadTransactions();
   }, [dateRange]);
 
   const loadTransactions = async () => {
-    setLoading(true);
     try {
       const response = await transactionsService.getAll();
       setTransactions(response.data.data);
     } catch (error) {
       console.error('Error al cargar transacciones:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -245,12 +241,12 @@ export default function AdminReports() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                    label={(entry: any) => `${entry.name}: $${entry.value.toFixed(2)}`}
+                  label={(props: any) => `${props.name}: $${props.value.toFixed(2)}`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {paymentMethodData.map((entry, index) => (
+                  {paymentMethodData.map((_entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
