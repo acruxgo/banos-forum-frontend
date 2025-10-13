@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { usersService } from '../services/api';
-import type { User } from '../types';
+import { authService } from '../services/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const login = useAuthStore((state) => state.login);
@@ -15,16 +15,15 @@ export default function Login() {
     setError('');
 
     try {
-      const response = await usersService.getAll();
-      const user = response.data.data.find((u: User) => u.email === email);
-
-      if (user && user.active) {
-        login(user);
-      } else {
-        setError('Usuario no encontrado o inactivo');
-      }
-    } catch (err) {
-      setError('Error al conectar con el servidor');
+      const response = await authService.login(email, password);
+      
+      // Guardar token en localStorage
+      localStorage.setItem('token', response.data.token);
+      
+      // Guardar usuario en el store
+      login(response.data.user);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Error al iniciar sesión');
     } finally {
       setLoading(false);
     }
@@ -54,6 +53,21 @@ export default function Login() {
             />
           </div>
 
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              Contraseña
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
               {error}
@@ -71,7 +85,7 @@ export default function Login() {
 
         <div className="mt-6 pt-6 border-t border-gray-200">
           <p className="text-xs text-gray-500 text-center">
-            Usuarios de prueba: admin@banosforum.com, cajero@banosforum.com
+            Contraseña de prueba: password123
           </p>
         </div>
       </div>
