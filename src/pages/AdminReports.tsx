@@ -3,7 +3,8 @@ import type { Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { transactionsService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, LogOut, Calendar, TrendingUp, Users as UsersIcon, Package } from 'lucide-react';
+import { Download, LogOut, Calendar, TrendingUp, Users as UsersIcon, Package, Key } from 'lucide-react';
+import ChangePasswordModal from '../components/ChangePasswordModal';
 
 export default function AdminReports() {
   const user = useAuthStore((state) => state.user);
@@ -11,6 +12,7 @@ export default function AdminReports() {
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   useEffect(() => {
     loadTransactions();
@@ -23,6 +25,11 @@ export default function AdminReports() {
     } catch (error) {
       console.error('Error al cargar transacciones:', error);
     }
+  };
+
+  const handlePasswordChanged = () => {
+    alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
+    logout();
   };
 
   const filterTransactionsByDate = (transactions: Transaction[]) => {
@@ -111,13 +118,22 @@ export default function AdminReports() {
             <h1 className="text-xl font-bold text-gray-800">Panel de Reportes</h1>
             <p className="text-sm text-gray-600">{user?.name} - Administrador</p>
           </div>
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
-          >
-            <LogOut size={20} />
-            Salir
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowChangePasswordModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
+              title="Cambiar Contraseña"
+            >
+              <Key size={20} />
+            </button>
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+            >
+              <LogOut size={20} />
+              Salir
+            </button>
+          </div>
         </div>
       </header>
 
@@ -299,6 +315,14 @@ export default function AdminReports() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Cambio de Contraseña */}
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          onClose={() => setShowChangePasswordModal(false)}
+          onSuccess={handlePasswordChanged}
+        />
+      )}
     </div>
   );
 }

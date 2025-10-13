@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import type { Shift, Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { shiftsService, transactionsService } from '../services/api';
-import { Users, DollarSign, TrendingUp, Clock, LogOut, RefreshCw } from 'lucide-react';
+import { Users, DollarSign, TrendingUp, Clock, LogOut, RefreshCw, Key } from 'lucide-react';
+import ChangePasswordModal from '../components/ChangePasswordModal';
 
 export default function SupervisorDashboard() {
   const user = useAuthStore((state) => state.user);
@@ -12,6 +13,7 @@ export default function SupervisorDashboard() {
   const [todayStats, setTodayStats] = useState<any>(null);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -60,6 +62,11 @@ export default function SupervisorDashboard() {
     }
   };
 
+  const handlePasswordChanged = () => {
+    alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
+    logout();
+  };
+
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString('es-MX', {
       hour: '2-digit',
@@ -86,6 +93,13 @@ export default function SupervisorDashboard() {
             <p className="text-sm text-gray-600">{user?.name}</p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={() => setShowChangePasswordModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
+              title="Cambiar Contraseña"
+            >
+              <Key size={20} />
+            </button>
             <button
               onClick={loadData}
               disabled={loading}
@@ -315,6 +329,14 @@ export default function SupervisorDashboard() {
           )}
         </div>
       </div>
+
+      {/* Modal de Cambio de Contraseña */}
+      {showChangePasswordModal && (
+        <ChangePasswordModal
+          onClose={() => setShowChangePasswordModal(false)}
+          onSuccess={handlePasswordChanged}
+        />
+      )}
     </div>
   );
 }
