@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import type { Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { transactionsService } from '../services/api';
@@ -9,6 +10,8 @@ import ChangePasswordModal from '../components/ChangePasswordModal';
 export default function AdminReports() {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const navigate = useNavigate();
+  const location = useLocation();
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
@@ -113,25 +116,51 @@ export default function AdminReports() {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">Panel de Reportes</h1>
-            <p className="text-sm text-gray-600">{user?.name} - Administrador</p>
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-xl font-bold text-gray-800">Panel de Administración</h1>
+              <p className="text-sm text-gray-600">{user?.name} - Administrador</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowChangePasswordModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
+                title="Cambiar Contraseña"
+              >
+                <Key size={20} />
+              </button>
+              <button
+                onClick={logout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+              >
+                <LogOut size={20} />
+                Salir
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
+          
+          {/* Menú de navegación */}
+          <div className="flex gap-2 mt-4 border-t pt-4">
             <button
-              onClick={() => setShowChangePasswordModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
-              title="Cambiar Contraseña"
+              onClick={() => navigate('/reportes')}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                location.pathname === '/reportes'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              <Key size={20} />
+              📊 Reportes
             </button>
             <button
-              onClick={logout}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+              onClick={() => navigate('/usuarios')}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                location.pathname === '/usuarios'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
-              <LogOut size={20} />
-              Salir
+              👥 Usuarios
             </button>
           </div>
         </div>

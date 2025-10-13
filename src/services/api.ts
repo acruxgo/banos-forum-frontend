@@ -54,6 +54,11 @@ export const productsService = {
 export const usersService = {
   getAll: () => api.get('/users'),
   getById: (id: string) => api.get(`/users/${id}`),
+  create: (userData: { email: string; name: string; role: string; password: string }) =>
+    api.post('/users', userData),
+  update: (id: string, userData: { email: string; name: string; role: string; password?: string }) =>
+    api.put(`/users/${id}`, userData),
+  toggleActive: (id: string) => api.patch(`/users/${id}/toggle-active`),
 };
 
 // Servicios de turnos
