@@ -14,14 +14,19 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
-      login: (user) => set({ user, isAuthenticated: true }),
+      login: (user) => {
+        console.log('🔐 Login - Usuario guardado:', user); // ← DEBUG
+        set({ user, isAuthenticated: true });
+      },
       logout: () => {
+        console.log('🚪 Logout - Limpiando...'); // ← DEBUG
         localStorage.removeItem('token');
+        localStorage.removeItem('auth-storage');
         set({ user: null, isAuthenticated: false });
       },
     }),
     {
-      name: 'auth-storage', // nombre del item en localStorage
+      name: 'auth-storage',
     }
   )
 );

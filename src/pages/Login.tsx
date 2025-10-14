@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/api';
 
+// LIMPIAR TODO AL CARGAR LOGIN
+localStorage.clear();
+sessionStorage.clear();
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
