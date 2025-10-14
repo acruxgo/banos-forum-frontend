@@ -48,12 +48,25 @@ export const authService = {
 // Servicios de productos
 export const productsService = {
   getAll: () => api.get('/products'),
-  getById: (id: string) => api.get(`/products/${id}`),
-  create: (productData: { name: string; price: number; type: string }) =>
-    api.post('/products', productData),
-  update: (id: string, productData: { name: string; price: number; type: string }) =>
-    api.put(`/products/${id}`, productData),
-  toggleActive: (id: string) => api.patch(`/products/${id}/toggle-active`),
+};
+
+// Servicios de empresas (solo super admin)
+export const businessesService = {
+  getAll: () => api.get('/businesses'),
+  getById: (id: string) => api.get(`/businesses/${id}`),
+  create: (businessData: {
+    name: string;
+    slug: string;
+    email: string;
+    phone?: string;
+    address?: string;
+    plan?: string;
+    adminName: string;
+    adminEmail: string;
+    adminPassword: string;
+  }) => api.post('/businesses', businessData),
+  update: (id: string, businessData: any) => api.put(`/businesses/${id}`, businessData),
+  toggleActive: (id: string) => api.patch(`/businesses/${id}/toggle-active`),
 };
 
 // Servicios de usuarios

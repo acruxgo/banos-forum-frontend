@@ -5,7 +5,8 @@ import CajaPOS from './pages/CajaPOS';
 import SupervisorDashboard from './pages/SupervisorDashboard';
 import AdminReports from './pages/AdminReports';
 import UserManagement from './pages/UserManagement';
-import ProductManagement from './pages/ProductManagement.tsx';
+import ProductManagement from './pages/ProductManagement';
+import BusinessManagement from './pages/BusinessManagement';
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -18,34 +19,39 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-      {/* Rutas del Admin */}
-      {user?.role === 'admin' && (
-        <>
-          <Route path="/" element={<Navigate to="/reportes" replace />} />
-          <Route path="/reportes" element={<AdminReports />} />
-          <Route path="/usuarios" element={<UserManagement />} />
-          <Route path="/productos" element={<ProductManagement />} />
-        </>
-      )}
+        {/* Rutas del Super Admin */}
+        {user?.role === 'super_admin' && (
+          <>
+            <Route path="/" element={<Navigate to="/empresas" replace />} />
+            <Route path="/empresas" element={<BusinessManagement />} />
+          </>
+        )}
 
-      {/* Rutas del Supervisor */}
-      {user?.role === 'supervisor' && (
-        <>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<SupervisorDashboard />} />
-        </>
-      )}
+        {/* Rutas del Admin */}
+        {user?.role === 'admin' && (
+          <>
+            <Route path="/" element={<Navigate to="/reportes" replace />} />
+            <Route path="/reportes" element={<AdminReports />} />
+            <Route path="/usuarios" element={<UserManagement />} />
+            <Route path="/productos" element={<ProductManagement />} />
+          </>
+        )}
 
-      {/* Rutas del Cajero */}
-      {user?.role === 'cajero' && (
-        <>
-          <Route path="/" element={<Navigate to="/caja" replace />} />
-          <Route path="/caja" element={<CajaPOS />} />
-        </>
-      )}
+        {/* Rutas del Supervisor */}
+        {user?.role === 'supervisor' && (
+          <>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<SupervisorDashboard />} />
+          </>
+        )}
 
-        {/* Ruta por defecto */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Rutas del Cajero */}
+        {user?.role === 'cajero' && (
+          <>
+            <Route path="/" element={<Navigate to="/caja" replace />} />
+            <Route path="/caja" element={<CajaPOS />} />
+          </>
+        )}
       </Routes>
     </BrowserRouter>
   );
