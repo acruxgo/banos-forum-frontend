@@ -16,42 +16,54 @@ function App() {
     return <Login />;
   }
 
+  // Super Admin Routes
+  if (user?.role === 'super_admin') {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/empresas" replace />} />
+          <Route path="/empresas" element={<BusinessManagement />} />
+          <Route path="*" element={<Navigate to="/empresas" replace />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
+  // Admin Routes
+  if (user?.role === 'admin') {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/reportes" replace />} />
+          <Route path="/reportes" element={<AdminReports />} />
+          <Route path="/usuarios" element={<UserManagement />} />
+          <Route path="/productos" element={<ProductManagement />} />
+          <Route path="*" element={<Navigate to="/reportes" replace />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
+  // Supervisor Routes
+  if (user?.role === 'supervisor') {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<SupervisorDashboard />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
+  // Cajero Routes
   return (
     <BrowserRouter>
       <Routes>
-        {/* Rutas del Super Admin */}
-        {user?.role === 'super_admin' && (
-          <>
-            <Route path="/" element={<Navigate to="/empresas" replace />} />
-            <Route path="/empresas" element={<BusinessManagement />} />
-          </>
-        )}
-
-        {/* Rutas del Admin */}
-        {user?.role === 'admin' && (
-          <>
-            <Route path="/" element={<Navigate to="/reportes" replace />} />
-            <Route path="/reportes" element={<AdminReports />} />
-            <Route path="/usuarios" element={<UserManagement />} />
-            <Route path="/productos" element={<ProductManagement />} />
-          </>
-        )}
-
-        {/* Rutas del Supervisor */}
-        {user?.role === 'supervisor' && (
-          <>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<SupervisorDashboard />} />
-          </>
-        )}
-
-        {/* Rutas del Cajero */}
-        {user?.role === 'cajero' && (
-          <>
-            <Route path="/" element={<Navigate to="/caja" replace />} />
-            <Route path="/caja" element={<CajaPOS />} />
-          </>
-        )}
+        <Route path="/" element={<Navigate to="/caja" replace />} />
+        <Route path="/caja" element={<CajaPOS />} />
+        <Route path="*" element={<Navigate to="/caja" replace />} />
       </Routes>
     </BrowserRouter>
   );
