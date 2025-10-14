@@ -1,77 +1,77 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { usersService } from '../services/api';
-import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw } from 'lucide-react';
+import { productsService } from '../services/api';
+import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import UserModal from '../components/UserModal';
+import ProductModal from '../components/ProductModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 
-interface User {
+interface Product {
   id: string;
-  email: string;
   name: string;
-  role: 'admin' | 'supervisor' | 'cajero';
+  price: number;
+  type: 'bano' | 'ducha' | 'locker';
   active: boolean;
   created_at: string;
 }
 
-export default function UserManagement() {
+export default function ProductManagement() {
   const currentUser = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [users, setUsers] = useState<User[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showUserModal, setShowUserModal] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   useEffect(() => {
-    loadUsers();
+    loadProducts();
   }, []);
 
-  const loadUsers = async () => {
+  const loadProducts = async () => {
     setLoading(true);
     try {
-      const response = await usersService.getAll();
-      setUsers(response.data.data);
+      const response = await productsService.getAll();
+      setProducts(response.data.data);
     } catch (error) {
-      console.error('Error al cargar usuarios:', error);
-      alert('Error al cargar usuarios');
+      console.error('Error al cargar productos:', error);
+      alert('Error al cargar productos');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateUser = () => {
-    setEditingUser(null);
-    setShowUserModal(true);
+  const handleCreateProduct = () => {
+    setEditingProduct(null);
+    setShowProductModal(true);
   };
 
-  const handleEditUser = (user: User) => {
-    setEditingUser(user);
-    setShowUserModal(true);
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setShowProductModal(true);
   };
 
-  const handleToggleActive = async (user: User) => {
-    if (!confirm(`¿Estás seguro de ${user.active ? 'desactivar' : 'activar'} a ${user.name}?`)) {
+  const handleToggleActive = async (product: Product) => {
+    if (!confirm(`¿Estás seguro de ${product.active ? 'desactivar' : 'activar'} ${product.name}?`)) {
       return;
     }
 
     try {
-      await usersService.toggleActive(user.id);
-      alert(`Usuario ${user.active ? 'desactivado' : 'activado'} exitosamente`);
-      loadUsers();
+      await productsService.toggleActive(product.id);
+      alert(`Producto ${product.active ? 'desactivado' : 'activado'} exitosamente`);
+      loadProducts();
     } catch (error) {
-      alert('Error al cambiar estado del usuario');
+      alert('Error al cambiar estado del producto');
     }
   };
 
-  const handleUserSaved = () => {
-    setShowUserModal(false);
-    setEditingUser(null);
-    loadUsers();
+  const handleProductSaved = () => {
+    setShowProductModal(false);
+    setEditingProduct(null);
+    loadProducts();
   };
 
   const handlePasswordChanged = () => {
@@ -79,12 +79,21 @@ export default function UserManagement() {
     logout();
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin': return 'bg-purple-100 text-purple-800';
-      case 'supervisor': return 'bg-blue-100 text-blue-800';
-      case 'cajero': return 'bg-green-100 text-green-800';
+  const getTypeBadgeColor = (type: string) => {
+    switch (type) {
+      case 'bano': return 'bg-blue-100 text-blue-800';
+      case 'ducha': return 'bg-cyan-100 text-cyan-800';
+      case 'locker': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'bano': return '🚽 Baño';
+      case 'ducha': return '🚿 Ducha';
+      case 'locker': return '🔐 Locker';
+      default: return type;
     }
   };
 
@@ -95,7 +104,7 @@ export default function UserManagement() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-xl font-bold text-gray-800">Gestión de Usuarios</h1>
+              <h1 className="text-xl font-bold text-gray-800">Gestión de Productos</h1>
               <p className="text-sm text-gray-600">{currentUser?.name} - Administrador</p>
             </div>
             <div className="flex gap-2">
@@ -157,14 +166,14 @@ export default function UserManagement() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Users className="text-blue-600" size={24} />
+              <Package className="text-blue-600" size={24} />
               <h2 className="text-lg font-bold text-gray-800">
-                Usuarios del Sistema ({users.length})
+                Productos/Servicios ({products.length})
               </h2>
             </div>
             <div className="flex gap-2">
               <button
-                onClick={loadUsers}
+                onClick={loadProducts}
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50"
               >
@@ -172,30 +181,30 @@ export default function UserManagement() {
                 Actualizar
               </button>
               <button
-                onClick={handleCreateUser}
+                onClick={handleCreateProduct}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
               >
                 <Plus size={20} />
-                Nuevo Usuario
+                Nuevo Producto
               </button>
             </div>
           </div>
         </div>
 
-        {/* Tabla de Usuarios */}
+        {/* Tabla de Productos */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nombre
+                    Producto/Servicio
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
+                    Tipo
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rol
+                    Precio
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Estado
@@ -209,48 +218,48 @@ export default function UserManagement() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id} className={!user.active ? 'bg-gray-50' : ''}>
+                {products.map((product) => (
+                  <tr key={product.id} className={!product.active ? 'bg-gray-50' : ''}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                      <div className="text-sm font-medium text-gray-900">{product.name}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-600">{user.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                        {user.role}
+                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(product.type)}`}>
+                        {getTypeLabel(product.type)}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-semibold text-green-600">${product.price.toFixed(2)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        user.active 
+                        product.active 
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-red-100 text-red-800'
                       }`}>
-                        {user.active ? 'Activo' : 'Inactivo'}
+                        {product.active ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(user.created_at).toLocaleDateString('es-MX')}
+                      {new Date(product.created_at).toLocaleDateString('es-MX')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => handleEditUser(user)}
+                          onClick={() => handleEditProduct(product)}
                           className="text-blue-600 hover:text-blue-900 transition"
                           title="Editar"
                         >
                           <Edit size={18} />
                         </button>
                         <button
-                          onClick={() => handleToggleActive(user)}
+                          onClick={() => handleToggleActive(product)}
                           className={`transition ${
-                            user.active 
+                            product.active 
                               ? 'text-red-600 hover:text-red-900' 
                               : 'text-green-600 hover:text-green-900'
                           }`}
-                          title={user.active ? 'Desactivar' : 'Activar'}
+                          title={product.active ? 'Desactivar' : 'Activar'}
                         >
                           <Power size={18} />
                         </button>
@@ -262,24 +271,24 @@ export default function UserManagement() {
             </table>
           </div>
 
-          {users.length === 0 && !loading && (
+          {products.length === 0 && !loading && (
             <div className="text-center py-12">
-              <Users className="mx-auto text-gray-400 mb-4" size={48} />
-              <p className="text-gray-500">No hay usuarios registrados</p>
+              <Package className="mx-auto text-gray-400 mb-4" size={48} />
+              <p className="text-gray-500">No hay productos registrados</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Modales */}
-      {showUserModal && (
-        <UserModal
-          user={editingUser}
+      {showProductModal && (
+        <ProductModal
+          product={editingProduct}
           onClose={() => {
-            setShowUserModal(false);
-            setEditingUser(null);
+            setShowProductModal(false);
+            setEditingProduct(null);
           }}
-          onSuccess={handleUserSaved}
+          onSuccess={handleProductSaved}
         />
       )}
 

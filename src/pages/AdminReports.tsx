@@ -162,6 +162,16 @@ export default function AdminReports() {
             >
               👥 Usuarios
             </button>
+            <button
+              onClick={() => navigate('/productos')}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                location.pathname === '/productos'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              📦 Productos
+            </button>
           </div>
         </div>
       </header>

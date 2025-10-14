@@ -48,6 +48,12 @@ export const authService = {
 // Servicios de productos
 export const productsService = {
   getAll: () => api.get('/products'),
+  getById: (id: string) => api.get(`/products/${id}`),
+  create: (productData: { name: string; price: number; type: string }) =>
+    api.post('/products', productData),
+  update: (id: string, productData: { name: string; price: number; type: string }) =>
+    api.put(`/products/${id}`, productData),
+  toggleActive: (id: string) => api.patch(`/products/${id}/toggle-active`),
 };
 
 // Servicios de usuarios
