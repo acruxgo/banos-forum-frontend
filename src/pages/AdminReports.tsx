@@ -4,11 +4,12 @@ import type { Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { transactionsService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, LogOut, Calendar, TrendingUp, Users as UsersIcon, Package, Key } from 'lucide-react';
+import { Download, LogOut, Calendar, TrendingUp, Users as UsersIcon, Package, Key, BarChart3 } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 
 export default function AdminReports() {
   const user = useAuthStore((state) => state.user);
+  const business = useAuthStore((state) => state.business);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
@@ -114,18 +115,38 @@ export default function AdminReports() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      {/* Header con branding */}
+      <header className="bg-white shadow-sm border-b" style={{ borderBottomColor: business?.primary_color || '#3B82F6', borderBottomWidth: '4px' }}>
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">Panel de Administración</h1>
-              <p className="text-sm text-gray-600">{user?.name} - Administrador</p>
+            <div className="flex items-center gap-4">
+              {/* Logo de la empresa */}
+              {business?.logo_url ? (
+                <img 
+                  src={business.logo_url} 
+                  alt={business.name}
+                  className="h-12 w-auto object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <BarChart3 size={32} style={{ color: business?.primary_color || '#3B82F6' }} />
+              )}
+              
+              <div>
+                <h1 className="text-xl font-bold" style={{ color: business?.primary_color || '#1F2937' }}>
+                  {business?.name || 'Panel de Administración'}
+                </h1>
+                <p className="text-sm text-gray-600">{user?.name} - Administrador</p>
+              </div>
             </div>
+
             <div className="flex gap-2">
               <button
                 onClick={() => setShowChangePasswordModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
+                className="px-4 py-2 text-white rounded-lg transition hover:opacity-90"
+                style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
                 title="Cambiar Contraseña"
               >
                 <Key size={20} />
@@ -140,15 +161,20 @@ export default function AdminReports() {
             </div>
           </div>
           
-          {/* Menú de navegación */}
+          {/* Menú de navegación con color de la empresa */}
           <div className="flex gap-2 mt-4 border-t pt-4">
             <button
               onClick={() => navigate('/reportes')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 location.pathname === '/reportes'
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              style={
+                location.pathname === '/reportes'
+                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                  : {}
+              }
             >
               📊 Reportes
             </button>
@@ -156,9 +182,14 @@ export default function AdminReports() {
               onClick={() => navigate('/usuarios')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 location.pathname === '/usuarios'
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              style={
+                location.pathname === '/usuarios'
+                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                  : {}
+              }
             >
               👥 Usuarios
             </button>
@@ -166,9 +197,14 @@ export default function AdminReports() {
               onClick={() => navigate('/productos')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 location.pathname === '/productos'
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              style={
+                location.pathname === '/productos'
+                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                  : {}
+              }
             >
               📦 Productos
             </button>
@@ -177,11 +213,11 @@ export default function AdminReports() {
       </header>
 
       <div className="max-w-7xl mx-auto p-4 space-y-6">
-        {/* Filtros */}
+        {/* Filtros con color de la empresa */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Calendar className="text-blue-600" size={24} />
+              <Calendar style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
               <h2 className="text-lg font-bold text-gray-800">Período</h2>
             </div>
             <div className="flex gap-2">
@@ -189,9 +225,14 @@ export default function AdminReports() {
                 onClick={() => setDateRange('today')}
                 className={`px-4 py-2 rounded-lg transition ${
                   dateRange === 'today'
-                    ? 'bg-blue-600 text-white'
+                    ? 'text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
+                style={
+                  dateRange === 'today'
+                    ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                    : {}
+                }
               >
                 Hoy
               </button>
@@ -199,9 +240,14 @@ export default function AdminReports() {
                 onClick={() => setDateRange('week')}
                 className={`px-4 py-2 rounded-lg transition ${
                   dateRange === 'week'
-                    ? 'bg-blue-600 text-white'
+                    ? 'text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
+                style={
+                  dateRange === 'week'
+                    ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                    : {}
+                }
               >
                 Última Semana
               </button>
@@ -209,9 +255,14 @@ export default function AdminReports() {
                 onClick={() => setDateRange('month')}
                 className={`px-4 py-2 rounded-lg transition ${
                   dateRange === 'month'
-                    ? 'bg-blue-600 text-white'
+                    ? 'text-white'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
+                style={
+                  dateRange === 'month'
+                    ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                    : {}
+                }
               >
                 Último Mes
               </button>
@@ -236,8 +287,8 @@ export default function AdminReports() {
                   ${totalSales.toFixed(2)}
                 </p>
               </div>
-              <div className="bg-green-100 p-3 rounded-full">
-                <TrendingUp className="text-green-600" size={32} />
+              <div className="p-3 rounded-full" style={{ backgroundColor: `${business?.primary_color}20` || '#10B98120' }}>
+                <TrendingUp style={{ color: business?.primary_color || '#10B981' }} size={32} />
               </div>
             </div>
           </div>
@@ -248,8 +299,8 @@ export default function AdminReports() {
                 <p className="text-sm text-gray-600">Total Transacciones</p>
                 <p className="text-3xl font-bold text-gray-800">{totalTransactions}</p>
               </div>
-              <div className="bg-blue-100 p-3 rounded-full">
-                <UsersIcon className="text-blue-600" size={32} />
+              <div className="p-3 rounded-full" style={{ backgroundColor: `${business?.primary_color}20` || '#3B82F620' }}>
+                <UsersIcon style={{ color: business?.primary_color || '#3B82F6' }} size={32} />
               </div>
             </div>
           </div>
@@ -262,14 +313,14 @@ export default function AdminReports() {
                   ${averageTicket.toFixed(2)}
                 </p>
               </div>
-              <div className="bg-purple-100 p-3 rounded-full">
-                <Package className="text-purple-600" size={32} />
+              <div className="p-3 rounded-full" style={{ backgroundColor: `${business?.primary_color}20` || '#8B5CF620' }}>
+                <Package style={{ color: business?.primary_color || '#8B5CF6' }} size={32} />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Gráficas */}
+        {/* Gráficas con color de la empresa */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Ventas por Producto */}
           <div className="bg-white rounded-lg shadow-md p-6">
@@ -281,7 +332,7 @@ export default function AdminReports() {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="total" fill="#3B82F6" name="Total ($)" />
+                <Bar dataKey="total" fill={business?.primary_color || '#3B82F6'} name="Total ($)" />
               </BarChart>
             </ResponsiveContainer>
           </div>

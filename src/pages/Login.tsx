@@ -2,10 +2,6 @@ import { useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { authService } from '../services/api';
 
-// LIMPIAR TODO AL CARGAR LOGIN
-localStorage.clear();
-sessionStorage.clear();
-
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,8 +20,8 @@ export default function Login() {
       // Guardar token en localStorage
       localStorage.setItem('token', response.data.token);
       
-      // Guardar usuario en el store
-      login(response.data.user);
+      // Guardar usuario Y empresa en el store
+      login(response.data.user, response.data.business);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Error al iniciar sesión');
     } finally {
