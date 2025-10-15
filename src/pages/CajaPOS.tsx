@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import type { Product, Shift } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { productsService, shiftsService, transactionsService } from '../services/api';
-import { ShoppingCart, LogOut, DollarSign, Key } from 'lucide-react';
+import { ShoppingCart, LogOut, DollarSign, Key, BarChart3 } from 'lucide-react';
 import CloseShiftModal from '../components/CloseShiftModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import ConfirmModal from '../components/ConfirmModal';
+import Toast from '../components/Toast';
 
 export default function CajaPOS() {
   const user = useAuthStore((state) => state.user);
+  const business = useAuthStore((state) => state.business);
   const logout = useAuthStore((state) => state.logout);
   
   const [products, setProducts] = useState<Product[]>([]);
@@ -18,6 +21,11 @@ export default function CajaPOS() {
   const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
+  // Estados para confirmaciones y toasts
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<any>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
   useEffect(() => {
     loadProducts();
     checkActiveShift();
@@ -26,9 +34,13 @@ export default function CajaPOS() {
   const loadProducts = async () => {
     try {
       const response = await productsService.getAll();
-      setProducts(response.data.data);
+      setProducts(response.data.data.filter((p: Product) => p.active));
     } catch (error) {
       console.error('Error al cargar productos:', error);
+      setToast({
+        message: 'Error al cargar productos',
+        type: 'error'
+      });
     }
   };
 
@@ -48,8 +60,15 @@ export default function CajaPOS() {
     try {
       const response = await shiftsService.start(user.id);
       setCurrentShift(response.data.data);
+      setToast({
+        message: 'Turno iniciado exitosamente',
+        type: 'success'
+      });
     } catch (error) {
-      alert('Error al iniciar turno');
+      setToast({
+        message: 'Error al iniciar turno',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -66,6 +85,10 @@ export default function CajaPOS() {
     } else {
       setCart([...cart, { product, quantity: 1 }]);
     }
+    setToast({
+      message: `${product.name} agregado al carrito`,
+      type: 'success'
+    });
   };
 
   const removeFromCart = (productId: string) => {
@@ -89,43 +112,88 @@ export default function CajaPOS() {
   const processSale = async () => {
     if (!currentShift || cart.length === 0) return;
 
-    setLoading(true);
-    try {
-      for (const item of cart) {
-        await transactionsService.create({
-          shift_id: currentShift.id,
-          product_id: item.product.id,
-          quantity: item.quantity,
-          unit_price: item.product.price,
-          payment_method: paymentMethod,
-          created_by: user?.id,
-        });
+    setConfirmAction({
+      title: 'Procesar Venta',
+      message: `¿Confirmar venta por $${calculateTotal().toFixed(2)} con ${paymentMethod === 'card' ? 'tarjeta' : paymentMethod === 'transfer' ? 'transferencia' : 'efectivo'}?`,
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          for (const item of cart) {
+            await transactionsService.create({
+              shift_id: currentShift.id,
+              product_id: item.product.id,
+              quantity: item.quantity,
+              unit_price: item.product.price,
+              payment_method: paymentMethod,
+              created_by: user?.id,
+            });
+          }
+          
+          setToast({
+            message: '✅ Venta registrada exitosamente',
+            type: 'success'
+          });
+          setCart([]);
+        } catch (error) {
+          setToast({
+            message: 'Error al procesar la venta',
+            type: 'error'
+          });
+        } finally {
+          setLoading(false);
+          setShowConfirm(false);
+        }
       }
-      
-      alert('Venta registrada exitosamente');
-      setCart([]);
-    } catch (error) {
-      alert('Error al procesar la venta');
-    } finally {
-      setLoading(false);
-    }
+    });
+    setShowConfirm(true);
+  };
+
+  const handleCloseShift = () => {
+    setConfirmAction({
+      title: 'Cerrar Turno',
+      message: '¿Estás seguro de cerrar el turno? No podrás registrar más ventas.',
+      onConfirm: () => {
+        setShowCloseShiftModal(true);
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
   };
 
   const handleShiftClosed = () => {
     setShowCloseShiftModal(false);
     setCurrentShift(null);
     setCart([]);
+    setToast({
+      message: 'Turno cerrado exitosamente',
+      type: 'success'
+    });
   };
 
   const handlePasswordChanged = () => {
-    alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
-    logout();
+    setToast({
+      message: 'Contraseña actualizada. Por favor, inicia sesión nuevamente.',
+      type: 'success'
+    });
+    setTimeout(() => {
+      logout();
+    }, 1500);
   };
 
   if (!currentShift) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+          {business?.logo_url && (
+            <img 
+              src={business.logo_url} 
+              alt={business.name}
+              className="h-16 w-auto object-contain mx-auto mb-4"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          )}
           <h2 className="text-2xl font-bold text-gray-800 mb-4">Sin turno activo</h2>
           <p className="text-gray-600 mb-6">
             Debes iniciar un turno para comenzar a registrar ventas.
@@ -133,7 +201,8 @@ export default function CajaPOS() {
           <button
             onClick={startShift}
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50"
+            className="w-full text-white font-semibold py-3 rounded-lg transition disabled:opacity-50 hover:opacity-90"
+            style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
           >
             {loading ? 'Iniciando...' : 'Iniciar Turno'}
           </button>
@@ -144,29 +213,55 @@ export default function CajaPOS() {
             Cerrar Sesión
           </button>
         </div>
+
+        {/* Toast */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      {/* Header con branding */}
+      <header className="bg-white shadow-sm border-b" style={{ borderBottomColor: business?.primary_color || '#3B82F6', borderBottomWidth: '4px' }}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">Baños Forum - Caja</h1>
-            <p className="text-sm text-gray-600">{user?.name} ({user?.role})</p>
+          <div className="flex items-center gap-4">
+            {business?.logo_url ? (
+              <img 
+                src={business.logo_url} 
+                alt={business.name}
+                className="h-12 w-auto object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <BarChart3 size={32} style={{ color: business?.primary_color || '#3B82F6' }} />
+            )}
+            <div>
+              <h1 className="text-xl font-bold" style={{ color: business?.primary_color || '#1F2937' }}>
+                {business?.name || 'Sistema POS'} - Caja
+              </h1>
+              <p className="text-sm text-gray-600">{user?.name} ({user?.role})</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setShowChangePasswordModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
+              className="px-4 py-2 text-white rounded-lg transition hover:opacity-90"
+              style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
               title="Cambiar Contraseña"
             >
               <Key size={20} />
             </button>
             <button
-              onClick={() => setShowCloseShiftModal(true)}
+              onClick={handleCloseShift}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition"
             >
               Cerrar Turno
@@ -192,10 +287,14 @@ export default function CajaPOS() {
                 <button
                   key={product.id}
                   onClick={() => addToCart(product)}
-                  className="bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 rounded-lg p-4 text-center transition"
+                  className="border-2 rounded-lg p-4 text-center transition hover:opacity-90"
+                  style={{ 
+                    backgroundColor: `${business?.primary_color}10` || '#EFF6FF',
+                    borderColor: business?.primary_color || '#3B82F6'
+                  }}
                 >
                   <p className="font-semibold text-gray-800">{product.name}</p>
-                  <p className="text-2xl font-bold text-blue-600 mt-2">
+                  <p className="text-2xl font-bold mt-2" style={{ color: business?.primary_color || '#3B82F6' }}>
                     ${product.price}
                   </p>
                   <p className="text-xs text-gray-500 mt-1 capitalize">{product.type}</p>
@@ -209,7 +308,7 @@ export default function CajaPOS() {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-4">
             <div className="flex items-center gap-2 mb-4">
-              <ShoppingCart size={24} className="text-blue-600" />
+              <ShoppingCart size={24} style={{ color: business?.primary_color || '#3B82F6' }} />
               <h2 className="text-lg font-bold text-gray-800">Carrito</h2>
             </div>
 
@@ -254,7 +353,7 @@ export default function CajaPOS() {
                 <div className="border-t pt-4">
                   <div className="flex justify-between items-center mb-4">
                     <span className="text-lg font-semibold text-gray-800">Total:</span>
-                    <span className="text-2xl font-bold text-blue-600">
+                    <span className="text-2xl font-bold" style={{ color: business?.primary_color || '#3B82F6' }}>
                       ${calculateTotal().toFixed(2)}
                     </span>
                   </div>
@@ -266,7 +365,8 @@ export default function CajaPOS() {
                     <select
                       value={paymentMethod}
                       onChange={(e) => setPaymentMethod(e.target.value as any)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 outline-none"
+                      style={{ borderColor: business?.primary_color || '#3B82F6' }}
                     >
                       <option value="card">Tarjeta</option>
                       <option value="transfer">Transferencia</option>
@@ -303,6 +403,27 @@ export default function CajaPOS() {
         <ChangePasswordModal
           onClose={() => setShowChangePasswordModal(false)}
           onSuccess={handlePasswordChanged}
+        />
+      )}
+
+      {/* Modal de Confirmación */}
+      {showConfirm && confirmAction && (
+        <ConfirmModal
+          isOpen={showConfirm}
+          title={confirmAction.title}
+          message={confirmAction.message}
+          onConfirm={confirmAction.onConfirm}
+          onCancel={() => setShowConfirm(false)}
+          type="info"
+        />
+      )}
+
+      {/* Toast de Notificación */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
     </div>

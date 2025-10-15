@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { usersService } from '../services/api';
-import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw } from 'lucide-react';
+import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import UserModal from '../components/UserModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import ConfirmModal from '../components/ConfirmModal';
+import Toast from '../components/Toast';
 
 interface User {
   id: string;
@@ -17,6 +19,7 @@ interface User {
 
 export default function UserManagement() {
   const currentUser = useAuthStore((state) => state.user);
+  const business = useAuthStore((state) => state.business);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,6 +29,11 @@ export default function UserManagement() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  // Estados para confirmaciones y toasts
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<any>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   useEffect(() => {
     loadUsers();
@@ -38,7 +46,10 @@ export default function UserManagement() {
       setUsers(response.data.data);
     } catch (error) {
       console.error('Error al cargar usuarios:', error);
-      alert('Error al cargar usuarios');
+      setToast({
+        message: 'Error al cargar usuarios',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -55,28 +66,47 @@ export default function UserManagement() {
   };
 
   const handleToggleActive = async (user: User) => {
-    if (!confirm(`¿Estás seguro de ${user.active ? 'desactivar' : 'activar'} a ${user.name}?`)) {
-      return;
-    }
-
-    try {
-      await usersService.toggleActive(user.id);
-      alert(`Usuario ${user.active ? 'desactivado' : 'activado'} exitosamente`);
-      loadUsers();
-    } catch (error) {
-      alert('Error al cambiar estado del usuario');
-    }
+    setConfirmAction({
+      title: user.active ? 'Desactivar Usuario' : 'Activar Usuario',
+      message: `¿Estás seguro de ${user.active ? 'desactivar' : 'activar'} a ${user.name}?`,
+      onConfirm: async () => {
+        try {
+          await usersService.toggleActive(user.id);
+          setToast({
+            message: `Usuario ${user.active ? 'desactivado' : 'activado'} exitosamente`,
+            type: 'success'
+          });
+          loadUsers();
+        } catch (error) {
+          setToast({
+            message: 'Error al cambiar estado del usuario',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
   };
 
   const handleUserSaved = () => {
     setShowUserModal(false);
     setEditingUser(null);
+    setToast({
+      message: editingUser ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente',
+      type: 'success'
+    });
     loadUsers();
   };
 
   const handlePasswordChanged = () => {
-    alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
-    logout();
+    setToast({
+      message: 'Contraseña actualizada. Por favor, inicia sesión nuevamente.',
+      type: 'success'
+    });
+    setTimeout(() => {
+      logout();
+    }, 1500);
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -90,18 +120,38 @@ export default function UserManagement() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      {/* Header con branding */}
+      <header className="bg-white shadow-sm border-b" style={{ borderBottomColor: business?.primary_color || '#3B82F6', borderBottomWidth: '4px' }}>
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-bold text-gray-800">Gestión de Usuarios</h1>
-              <p className="text-sm text-gray-600">{currentUser?.name} - Administrador</p>
+            <div className="flex items-center gap-4">
+              {/* Logo de la empresa */}
+              {business?.logo_url ? (
+                <img 
+                  src={business.logo_url} 
+                  alt={business.name}
+                  className="h-12 w-auto object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <BarChart3 size={32} style={{ color: business?.primary_color || '#3B82F6' }} />
+              )}
+              
+              <div>
+                <h1 className="text-xl font-bold" style={{ color: business?.primary_color || '#1F2937' }}>
+                  Gestión de Usuarios
+                </h1>
+                <p className="text-sm text-gray-600">{currentUser?.name} - Administrador</p>
+              </div>
             </div>
+
             <div className="flex gap-2">
               <button
                 onClick={() => setShowChangePasswordModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"
+                className="px-4 py-2 text-white rounded-lg transition hover:opacity-90"
+                style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
                 title="Cambiar Contraseña"
               >
                 <Key size={20} />
@@ -116,15 +166,20 @@ export default function UserManagement() {
             </div>
           </div>
 
-          {/* Menú de navegación */}
+          {/* Menú de navegación con color de la empresa */}
           <div className="flex gap-2 mt-4 border-t pt-4">
             <button
               onClick={() => navigate('/reportes')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 location.pathname === '/reportes'
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              style={
+                location.pathname === '/reportes'
+                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                  : {}
+              }
             >
               📊 Reportes
             </button>
@@ -132,9 +187,14 @@ export default function UserManagement() {
               onClick={() => navigate('/usuarios')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 location.pathname === '/usuarios'
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              style={
+                location.pathname === '/usuarios'
+                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                  : {}
+              }
             >
               👥 Usuarios
             </button>
@@ -142,9 +202,14 @@ export default function UserManagement() {
               onClick={() => navigate('/productos')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 location.pathname === '/productos'
-                  ? 'bg-blue-600 text-white'
+                  ? 'text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
+              style={
+                location.pathname === '/productos'
+                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                  : {}
+              }
             >
               📦 Productos
             </button>
@@ -157,7 +222,7 @@ export default function UserManagement() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Users className="text-blue-600" size={24} />
+              <Users style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
               <h2 className="text-lg font-bold text-gray-800">
                 Usuarios del Sistema ({users.length})
               </h2>
@@ -173,7 +238,8 @@ export default function UserManagement() {
               </button>
               <button
                 onClick={handleCreateUser}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg transition hover:opacity-90"
+                style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
               >
                 <Plus size={20} />
                 Nuevo Usuario
@@ -238,7 +304,8 @@ export default function UserManagement() {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleEditUser(user)}
-                          className="text-blue-600 hover:text-blue-900 transition"
+                          className="hover:text-blue-900 transition"
+                          style={{ color: business?.primary_color || '#3B82F6' }}
                           title="Editar"
                         >
                           <Edit size={18} />
@@ -287,6 +354,27 @@ export default function UserManagement() {
         <ChangePasswordModal
           onClose={() => setShowChangePasswordModal(false)}
           onSuccess={handlePasswordChanged}
+        />
+      )}
+
+      {/* Modal de Confirmación */}
+      {showConfirm && confirmAction && (
+        <ConfirmModal
+          isOpen={showConfirm}
+          title={confirmAction.title}
+          message={confirmAction.message}
+          onConfirm={confirmAction.onConfirm}
+          onCancel={() => setShowConfirm(false)}
+          type="warning"
+        />
+      )}
+
+      {/* Toast de Notificación */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
     </div>
