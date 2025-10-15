@@ -5,6 +5,7 @@ import { productsService, shiftsService, transactionsService } from '../services
 import { ShoppingCart, LogOut, DollarSign, Key, BarChart3 } from 'lucide-react';
 import CloseShiftModal from '../components/CloseShiftModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import StartShiftModal from '../components/StartShiftModal';
 import ConfirmModal from '../components/ConfirmModal';
 import Toast from '../components/Toast';
 
@@ -18,6 +19,7 @@ export default function CajaPOS() {
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'transfer' | 'cash'>('card');
   const [loading, setLoading] = useState(false);
+  const [showStartShiftModal, setShowStartShiftModal] = useState(false);
   const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
@@ -54,24 +56,28 @@ export default function CajaPOS() {
     }
   };
 
-  const startShift = async () => {
+  const handleStartShift = (initialCash: number) => {
     if (!user) return;
     setLoading(true);
-    try {
-      const response = await shiftsService.start(user.id);
-      setCurrentShift(response.data.data);
-      setToast({
-        message: 'Turno iniciado exitosamente',
-        type: 'success'
+    
+    shiftsService.start(user.id, initialCash)
+      .then((response) => {
+        setCurrentShift(response.data.data);
+        setShowStartShiftModal(false);
+        setToast({
+          message: `Turno iniciado con $${initialCash.toFixed(2)} en caja`,
+          type: 'success'
+        });
+      })
+      .catch((error) => {
+        setToast({
+          message: 'Error al iniciar turno',
+          type: 'error'
+        });
+      })
+      .finally(() => {
+        setLoading(false);
       });
-    } catch (error) {
-      setToast({
-        message: 'Error al iniciar turno',
-        type: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
   };
 
   const addToCart = (product: Product) => {
@@ -199,12 +205,11 @@ export default function CajaPOS() {
             Debes iniciar un turno para comenzar a registrar ventas.
           </p>
           <button
-            onClick={startShift}
-            disabled={loading}
-            className="w-full text-white font-semibold py-3 rounded-lg transition disabled:opacity-50 hover:opacity-90"
+            onClick={() => setShowStartShiftModal(true)}
+            className="w-full text-white font-semibold py-3 rounded-lg transition hover:opacity-90"
             style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
           >
-            {loading ? 'Iniciando...' : 'Iniciar Turno'}
+            Iniciar Turno
           </button>
           <button
             onClick={logout}
@@ -213,6 +218,15 @@ export default function CajaPOS() {
             Cerrar Sesión
           </button>
         </div>
+
+        {/* Modal de Inicio de Turno */}
+        {showStartShiftModal && (
+          <StartShiftModal
+            onClose={() => setShowStartShiftModal(false)}
+            onConfirm={handleStartShift}
+            loading={loading}
+          />
+        )}
 
         {/* Toast */}
         {toast && (

@@ -93,7 +93,8 @@ export const shiftsService = {
   getActive: () => api.get('/shifts/active'),
   start: (userId: string, initialCash: number = 0) => 
     api.post('/shifts/start', { user_id: userId, initial_cash: initialCash }),
-  close: (shiftId: string) => api.put(`/shifts/${shiftId}/close`),
+  close: (shiftId: string, finalCash: number) => 
+    api.put(`/shifts/${shiftId}/close`, { final_cash: finalCash }),
 };
 
 // Servicios de transacciones
