@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { businessesService } from '../services/api';
-import { Building2, Plus, Edit, Power, LogOut, Key, RefreshCw, Crown } from 'lucide-react';
+import { Building2, Plus, Edit, Power, LogOut, Key, RefreshCw, Crown, TrendingUp, Package, Users } from 'lucide-react';
 import BusinessModal from '../components/BusinessModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 
@@ -26,6 +26,16 @@ export default function BusinessManagement() {
   const [showBusinessModal, setShowBusinessModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [editingBusiness, setEditingBusiness] = useState<Business | null>(null);
+  
+  // Estados para estadísticas globales
+  const [globalStats, setGlobalStats] = useState({
+    totalBusinesses: 0,
+    totalUsers: 0,
+    totalProducts: 0,
+    totalSales: 0,
+    totalTransactions: 0
+  });
+  const [topBusinesses, setTopBusinesses] = useState<any[]>([]);
 
   useEffect(() => {
     loadBusinesses();
@@ -34,8 +44,17 @@ export default function BusinessManagement() {
   const loadBusinesses = async () => {
     setLoading(true);
     try {
-      const response = await businessesService.getAll();
-      setBusinesses(response.data.data);
+      const [businessesRes, statsRes] = await Promise.all([
+        businessesService.getAll(),
+        businessesService.getGlobalStats()
+      ]);
+      
+      setBusinesses(businessesRes.data.data);
+      
+      if (statsRes.data.success) {
+        setGlobalStats(statsRes.data.data.overview);
+        setTopBusinesses(statsRes.data.data.topBusinesses);
+      }
     } catch (error) {
       console.error('Error al cargar empresas:', error);
       alert('Error al cargar empresas');
@@ -131,42 +150,94 @@ export default function BusinessManagement() {
       </header>
 
       <div className="max-w-7xl mx-auto p-4 space-y-6">
-        {/* Estadísticas rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+        {/* Estadísticas Globales Mejoradas */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-purple-500">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm text-gray-600">Empresas Activas</p>
-                <p className="text-3xl font-bold text-gray-800">
-                  {businesses.filter(b => b.active).length}
-                </p>
+                <p className="text-sm text-gray-600">Total Empresas</p>
+                <p className="text-3xl font-bold text-gray-800">{globalStats.totalBusinesses}</p>
               </div>
-              <Building2 className="text-green-500" size={40} />
+              <Building2 className="text-purple-500" size={40} />
             </div>
           </div>
 
           <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm text-gray-600">Total Empresas</p>
-                <p className="text-3xl font-bold text-gray-800">{businesses.length}</p>
+                <p className="text-sm text-gray-600">Total Usuarios</p>
+                <p className="text-3xl font-bold text-gray-800">{globalStats.totalUsers}</p>
               </div>
-              <Building2 className="text-blue-500" size={40} />
+              <Users className="text-blue-500" size={40} />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm text-gray-600">Empresas Inactivas</p>
-                <p className="text-3xl font-bold text-gray-800">
-                  {businesses.filter(b => !b.active).length}
-                </p>
+                <p className="text-sm text-gray-600">Total Ventas</p>
+                <p className="text-2xl font-bold text-gray-800">${globalStats.totalSales.toFixed(2)}</p>
               </div>
-              <Building2 className="text-red-500" size={40} />
+              <TrendingUp className="text-green-500" size={40} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-orange-500">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-600">Transacciones</p>
+                <p className="text-3xl font-bold text-gray-800">{globalStats.totalTransactions}</p>
+              </div>
+              <RefreshCw className="text-orange-500" size={40} />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-pink-500">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-600">Total Productos</p>
+                <p className="text-3xl font-bold text-gray-800">{globalStats.totalProducts}</p>
+              </div>
+              <Package className="text-pink-500" size={40} />
             </div>
           </div>
         </div>
+
+        {/* Top 5 Empresas por Ventas */}
+        {topBusinesses.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <TrendingUp className="text-green-500" size={24} />
+              Top 5 Empresas por Ventas
+            </h2>
+            <div className="space-y-3">
+              {topBusinesses.map((business, index) => (
+                <div key={business.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
+                      index === 0 ? 'bg-yellow-500' : 
+                      index === 1 ? 'bg-gray-400' : 
+                      index === 2 ? 'bg-orange-600' : 
+                      'bg-blue-500'
+                    }`}>
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-800">{business.name}</p>
+                      <p className="text-xs text-gray-500">{business.transactionCount} transacciones</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-green-600">${business.totalSales.toFixed(2)}</p>
+                    <span className={`text-xs px-2 py-1 rounded-full ${getPlanBadgeColor(business.plan)}`}>
+                      {getPlanLabel(business.plan)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Acciones */}
         <div className="bg-white rounded-lg shadow-md p-6">

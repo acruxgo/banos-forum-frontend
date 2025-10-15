@@ -60,6 +60,7 @@ export const productsService = {
 export const businessesService = {
   getAll: () => api.get('/businesses'),
   getById: (id: string) => api.get(`/businesses/${id}`),
+  getGlobalStats: () => api.get('/businesses/stats/global'),
   create: (businessData: {
     name: string;
     slug: string;
