@@ -4,6 +4,8 @@ import { businessesService } from '../services/api';
 import { Building2, Plus, Edit, Power, LogOut, Key, RefreshCw, Crown, TrendingUp, Package, Users } from 'lucide-react';
 import BusinessModal from '../components/BusinessModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import ConfirmModal from '../components/ConfirmModal';
+import Toast from '../components/Toast';
 
 interface Business {
   id: string;
@@ -37,6 +39,11 @@ export default function BusinessManagement() {
   });
   const [topBusinesses, setTopBusinesses] = useState<any[]>([]);
 
+  // Estados para confirmaciones y toasts
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<any>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
   useEffect(() => {
     loadBusinesses();
   }, []);
@@ -57,7 +64,10 @@ export default function BusinessManagement() {
       }
     } catch (error) {
       console.error('Error al cargar empresas:', error);
-      alert('Error al cargar empresas');
+      setToast({
+        message: 'Error al cargar empresas',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -74,28 +84,47 @@ export default function BusinessManagement() {
   };
 
   const handleToggleActive = async (business: Business) => {
-    if (!confirm(`¿Estás seguro de ${business.active ? 'desactivar' : 'activar'} ${business.name}?`)) {
-      return;
-    }
-
-    try {
-      await businessesService.toggleActive(business.id);
-      alert(`Empresa ${business.active ? 'desactivada' : 'activada'} exitosamente`);
-      loadBusinesses();
-    } catch (error) {
-      alert('Error al cambiar estado de la empresa');
-    }
+    setConfirmAction({
+      title: business.active ? 'Desactivar Empresa' : 'Activar Empresa',
+      message: `¿Estás seguro de ${business.active ? 'desactivar' : 'activar'} ${business.name}?`,
+      onConfirm: async () => {
+        try {
+          await businessesService.toggleActive(business.id);
+          setToast({
+            message: `Empresa ${business.active ? 'desactivada' : 'activada'} exitosamente`,
+            type: 'success'
+          });
+          loadBusinesses();
+        } catch (error) {
+          setToast({
+            message: 'Error al cambiar estado de la empresa',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
   };
 
   const handleBusinessSaved = () => {
     setShowBusinessModal(false);
     setEditingBusiness(null);
+    setToast({
+      message: editingBusiness ? 'Empresa actualizada exitosamente' : 'Empresa creada exitosamente',
+      type: 'success'
+    });
     loadBusinesses();
   };
 
   const handlePasswordChanged = () => {
-    alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
-    logout();
+    setToast({
+      message: 'Contraseña actualizada. Por favor, inicia sesión nuevamente.',
+      type: 'success'
+    });
+    setTimeout(() => {
+      logout();
+    }, 1500);
   };
 
   const getPlanBadgeColor = (plan: string) => {
@@ -380,6 +409,27 @@ export default function BusinessManagement() {
         <ChangePasswordModal
           onClose={() => setShowChangePasswordModal(false)}
           onSuccess={handlePasswordChanged}
+        />
+      )}
+
+      {/* Modal de Confirmación */}
+      {showConfirm && confirmAction && (
+        <ConfirmModal
+          isOpen={showConfirm}
+          title={confirmAction.title}
+          message={confirmAction.message}
+          onConfirm={confirmAction.onConfirm}
+          onCancel={() => setShowConfirm(false)}
+          type="warning"
+        />
+      )}
+
+      {/* Toast de Notificación */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
         />
       )}
     </div>
