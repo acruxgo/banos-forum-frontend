@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { businessesService } from '../services/api';
-import { X, Building2, Mail, Phone, MapPin, Tag, User, Lock, Eye, EyeOff, Crown } from 'lucide-react';
+import { X, Building2, Mail, Phone, MapPin, Tag, User, Lock, Eye, EyeOff, Crown, Palette } from 'lucide-react';
 
 interface BusinessModalProps {
-  business: any | null;
+  business: any | null; // Si es null = crear, si tiene datos = editar
   onClose: () => void;
   onSuccess: () => void;
 }
 
 export default function BusinessModal({ business, onClose, onSuccess }: BusinessModalProps) {
+  const isEditing = !!business;
+
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -16,10 +18,13 @@ export default function BusinessModal({ business, onClose, onSuccess }: Business
     phone: '',
     address: '',
     plan: 'basic',
+    primary_color: '#3B82F6',
+    logo_url: '',
     adminName: '',
     adminEmail: '',
     adminPassword: ''
   });
+
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -27,12 +32,14 @@ export default function BusinessModal({ business, onClose, onSuccess }: Business
   useEffect(() => {
     if (business) {
       setFormData({
-        name: business.name,
-        slug: business.slug,
-        email: business.email,
+        name: business.name || '',
+        slug: business.slug || '',
+        email: business.email || '',
         phone: business.phone || '',
         address: business.address || '',
-        plan: business.plan,
+        plan: business.plan || 'basic',
+        primary_color: business.primary_color || '#3B82F6',
+        logo_url: business.logo_url || '',
         adminName: '',
         adminEmail: '',
         adminPassword: ''
@@ -40,58 +47,31 @@ export default function BusinessModal({ business, onClose, onSuccess }: Business
     }
   }, [business]);
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  };
-
-  const handleNameChange = (name: string) => {
-    setFormData({ 
-      ...formData, 
-      name,
-      slug: business ? formData.slug : generateSlug(name)
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     setError('');
 
-    // Validaciones para nueva empresa
-    if (!business) {
-      if (!formData.name.trim() || !formData.slug.trim() || !formData.email.trim()) {
-        setError('Nombre, slug y email son requeridos');
-        return;
-      }
-
-      if (!formData.adminName.trim() || !formData.adminEmail.trim() || !formData.adminPassword) {
-        setError('Datos del administrador son requeridos');
-        return;
-      }
-
-      if (formData.adminPassword.length < 6) {
-        setError('La contraseña debe tener al menos 6 caracteres');
-        return;
-      }
-    }
-
-    setLoading(true);
     try {
-      if (business) {
-        // Editar empresa existente
+      if (isEditing) {
+        // EDITAR empresa existente
         await businessesService.update(business.id, {
           name: formData.name,
           email: formData.email,
           phone: formData.phone,
           address: formData.address,
-          plan: formData.plan
+          plan: formData.plan,
+          primary_color: formData.primary_color,
+          logo_url: formData.logo_url
         });
       } else {
-        // Crear nueva empresa
+        // CREAR nueva empresa
+        if (!formData.adminName || !formData.adminEmail || !formData.adminPassword) {
+          setError('Datos del administrador son requeridos para crear una empresa');
+          setLoading(false);
+          return;
+        }
+
         await businessesService.create({
           name: formData.name,
           slug: formData.slug,
@@ -104,218 +84,241 @@ export default function BusinessModal({ business, onClose, onSuccess }: Business
           adminPassword: formData.adminPassword
         });
       }
-      
+
       onSuccess();
+      onClose();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al guardar empresa');
+      setError(err.response?.data?.message || `Error al ${isEditing ? 'actualizar' : 'crear'} empresa`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 my-8">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2">
-            <Crown className="text-purple-600" size={24} />
-            <h2 className="text-xl font-bold text-gray-800">
-              {business ? 'Editar Empresa' : 'Nueva Empresa'}
+        <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Building2 size={28} />
+            <h2 className="text-2xl font-bold">
+              {isEditing ? 'Editar Empresa' : 'Nueva Empresa'}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition"
-          >
+          <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-lg transition">
             <X size={24} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Información de la Empresa */}
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <h3 className="text-sm font-semibold text-purple-900 mb-3 flex items-center gap-2">
-              <Building2 size={16} />
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+              <Building2 size={20} />
               Información de la Empresa
             </h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Nombre */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre de la Empresa *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  placeholder="Ej: Baños Playa"
-                  required
-                />
-              </div>
+            {/* Nombre */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre de la Empresa *
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                required
+              />
+            </div>
 
-              {/* Slug */}
+            {/* Slug (solo al crear) */}
+            {!isEditing && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Slug (URL) *
+                  Slug (URL única) *
                 </label>
                 <input
                   type="text"
                   value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  placeholder="banos-playa"
-                  disabled={!!business}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="mi-empresa"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">Sin espacios, solo letras y guiones</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Solo letras minúsculas, números y guiones
+                </p>
               </div>
+            )}
 
-              {/* Email */}
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Mail size={16} className="inline mr-1" />
+                Email de Contacto *
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            {/* Teléfono */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Phone size={16} className="inline mr-1" />
+                Teléfono
+              </label>
+              <input
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Dirección */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <MapPin size={16} className="inline mr-1" />
+                Dirección
+              </label>
+              <textarea
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                rows={2}
+              />
+            </div>
+
+            {/* Plan */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Tag size={16} className="inline mr-1" />
+                Plan
+              </label>
+              <select
+                value={formData.plan}
+                onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                <option value="basic">Básico</option>
+                <option value="premium">Premium</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+            </div>
+
+            {/* Branding */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Color Principal */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Mail size={14} />
-                    Email de Contacto *
-                  </div>
+                  <Palette size={16} className="inline mr-1" />
+                  Color Principal
                 </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  placeholder="contacto@empresa.com"
-                  required
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="color"
+                    value={formData.primary_color}
+                    onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
+                    className="h-10 w-20 border border-gray-300 rounded cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={formData.primary_color}
+                    onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="#3B82F6"
+                  />
+                </div>
               </div>
 
-              {/* Teléfono */}
+              {/* Logo URL */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Phone size={14} />
-                    Teléfono
-                  </div>
+                  Logo URL
                 </label>
                 <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  placeholder="555-1234"
+                  type="url"
+                  value={formData.logo_url}
+                  onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  placeholder="https://..."
                 />
-              </div>
-
-              {/* Dirección */}
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <div className="flex items-center gap-2">
-                    <MapPin size={14} />
-                    Dirección
-                  </div>
-                </label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  placeholder="Calle, Número, Ciudad, Estado"
-                />
-              </div>
-
-              {/* Plan */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Tag size={14} />
-                    Plan
-                  </div>
-                </label>
-                <select
-                  value={formData.plan}
-                  onChange={(e) => setFormData({ ...formData, plan: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                >
-                  <option value="basic">📦 Básico</option>
-                  <option value="premium">⭐ Premium</option>
-                  <option value="enterprise">💎 Enterprise</option>
-                </select>
               </div>
             </div>
           </div>
 
-          {/* Información del Administrador (solo al crear) */}
-          {!business && (
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h3 className="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                <User size={16} />
-                Usuario Administrador
+          {/* Datos del Administrador (solo al crear) */}
+          {!isEditing && (
+            <div className="space-y-4 border-t pt-6">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <Crown size={20} className="text-yellow-500" />
+                Administrador de la Empresa
               </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Nombre del Admin */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre Completo *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.adminName}
-                    onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="Juan Pérez"
-                    required={!business}
-                  />
-                </div>
+              {/* Nombre Admin */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <User size={16} className="inline mr-1" />
+                  Nombre Completo *
+                </label>
+                <input
+                  type="text"
+                  value={formData.adminName}
+                  onChange={(e) => setFormData({ ...formData, adminName: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  required={!isEditing}
+                />
+              </div>
 
-                {/* Email del Admin */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.adminEmail}
-                    onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="admin@empresa.com"
-                    required={!business}
-                  />
-                </div>
+              {/* Email Admin */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Mail size={16} className="inline mr-1" />
+                  Email del Administrador *
+                </label>
+                <input
+                  type="email"
+                  value={formData.adminEmail}
+                  onChange={(e) => setFormData({ ...formData, adminEmail: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  required={!isEditing}
+                />
+              </div>
 
-                {/* Contraseña del Admin */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <div className="flex items-center gap-2">
-                      <Lock size={14} />
-                      Contraseña *
-                    </div>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.adminPassword}
-                      onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                      placeholder="••••••••"
-                      required={!business}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Mínimo 6 caracteres</p>
+              {/* Contraseña Admin */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Lock size={16} className="inline mr-1" />
+                  Contraseña *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.adminPassword}
+                    onChange={(e) => setFormData({ ...formData, adminPassword: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="Mínimo 6 caracteres"
+                    required={!isEditing}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
                 </div>
               </div>
             </div>
           )}
 
+          {/* Error */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
               {error}
@@ -327,16 +330,16 @@ export default function BusinessModal({ business, onClose, onSuccess }: Business
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition"
+              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition font-medium disabled:opacity-50"
             >
-              {loading ? 'Guardando...' : (business ? 'Actualizar Empresa' : 'Crear Empresa')}
+              {loading ? 'Guardando...' : isEditing ? 'Actualizar Empresa' : 'Crear Empresa'}
             </button>
           </div>
         </form>
