@@ -195,14 +195,18 @@ export default function AdminReports() {
     };
   }).sort((a, b) => b.sales - a.sales); // Ordenar por ventas descendente
 
-  // Calcular estadísticas de transacciones mostradas (con filtros)
-  const totalSales = transactions.reduce((sum, t) => sum + Number(t.total), 0);
-  const totalTransactions = pagination.total;
-  const averageTicket = transactions.length > 0 ? totalSales / transactions.length : 0;
+  // Determinar qué transacciones usar según si hay filtros activos
+  // Si hay filtro de empleado, usar transacciones filtradas para TODO
+  const dataForStats = filters.employee !== 'all' ? transactions : allTransactions;
 
-  // Ventas por día (últimos 30 días)
+  // Calcular estadísticas de transacciones mostradas (con filtros)
+  const totalSales = dataForStats.reduce((sum, t) => sum + Number(t.total), 0);
+  const totalTransactions = filters.employee !== 'all' ? transactions.length : pagination.total;
+  const averageTicket = dataForStats.length > 0 ? totalSales / dataForStats.length : 0;
+
+  // Ventas por día (últimos 30 días) - usar transacciones según filtro
   const salesByDay = () => {
-    const last30Days = allTransactions.filter(t => {
+    const last30Days = dataForStats.filter(t => {
       const date = new Date(t.created_at);
       const now = new Date();
       const diff = now.getTime() - date.getTime();
@@ -218,8 +222,8 @@ export default function AdminReports() {
     return Object.entries(grouped).map(([date, total]) => ({ date, total })).slice(-15); // Últimos 15 días
   };
 
-  // Ventas por producto
-  const salesByProduct = transactions.reduce((acc: any, t) => {
+  // Ventas por producto - usar transacciones según filtro
+  const salesByProduct = dataForStats.reduce((acc: any, t) => {
     const productName = t.products?.name || 'Desconocido';
     if (!acc[productName]) {
       acc[productName] = { name: productName, total: 0, count: 0 };
@@ -231,8 +235,8 @@ export default function AdminReports() {
 
   const productData = Object.values(salesByProduct);
 
-  // Ventas por método de pago
-  const salesByPaymentMethod = transactions.reduce((acc: any, t) => {
+  // Ventas por método de pago - usar transacciones según filtro
+  const salesByPaymentMethod = dataForStats.reduce((acc: any, t) => {
     const method = t.payment_method;
     if (!acc[method]) {
       acc[method] = { name: method, value: 0 };
