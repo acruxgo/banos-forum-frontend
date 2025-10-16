@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { usersService } from '../services/api';
-import { X, User, Mail, Shield, Lock, Eye, EyeOff } from 'lucide-react';
+import { X, User, Mail, Shield, Lock, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { validateEmail, validateName, validatePassword, formatName, formatEmail } from '../utils/validators';
 
 interface UserModalProps {
   user: any | null;
@@ -18,6 +19,19 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Estados de validación en tiempo real
+  const [validationErrors, setValidationErrors] = useState({
+    name: '',
+    email: '',
+    password: ''
+  });
+
+  const [touched, setTouched] = useState({
+    name: false,
+    email: false,
+    password: false
+  });
 
   useEffect(() => {
     if (user) {
@@ -30,55 +44,121 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
     }
   }, [user]);
 
+  // Validación en tiempo real
+  const handleNameChange = (value: string) => {
+    setFormData({ ...formData, name: value });
+    
+    if (touched.name) {
+      const validation = validateName(value);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        name: validation.valid ? '' : validation.error || '' 
+      }));
+    }
+  };
+
+  const handleEmailChange = (value: string) => {
+    setFormData({ ...formData, email: value });
+    
+    if (touched.email) {
+      const validation = validateEmail(value);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        email: validation.valid ? '' : validation.error || '' 
+      }));
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setFormData({ ...formData, password: value });
+    
+    if (touched.password) {
+      const validation = validatePassword(value, !user);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        password: validation.valid ? '' : validation.error || '' 
+      }));
+    }
+  };
+
+  const handleBlur = (field: 'name' | 'email' | 'password') => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    
+    // Validar al perder foco
+    if (field === 'name') {
+      const validation = validateName(formData.name);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        name: validation.valid ? '' : validation.error || '' 
+      }));
+    } else if (field === 'email') {
+      const validation = validateEmail(formData.email);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        email: validation.valid ? '' : validation.error || '' 
+      }));
+    } else if (field === 'password') {
+      const validation = validatePassword(formData.password, !user);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        password: validation.valid ? '' : validation.error || '' 
+      }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validaciones
-    if (!formData.name.trim()) {
-      setError('El nombre es requerido');
+    // Marcar todos como touched
+    setTouched({ name: true, email: true, password: true });
+
+    // Validar nombre
+    const nameValidation = validateName(formData.name);
+    if (!nameValidation.valid) {
+      setValidationErrors(prev => ({ ...prev, name: nameValidation.error || '' }));
       return;
     }
 
-    if (!formData.email.trim()) {
-      setError('El email es requerido');
+    // Validar email
+    const emailValidation = validateEmail(formData.email);
+    if (!emailValidation.valid) {
+      setValidationErrors(prev => ({ ...prev, email: emailValidation.error || '' }));
       return;
     }
 
-    if (!user && !formData.password) {
-      setError('La contraseña es requerida para nuevos usuarios');
-      return;
-    }
-
-    if (formData.password && formData.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+    // Validar contraseña
+    const passwordValidation = validatePassword(formData.password, !user);
+    if (!passwordValidation.valid) {
+      setValidationErrors(prev => ({ ...prev, password: passwordValidation.error || '' }));
       return;
     }
 
     setLoading(true);
     try {
       if (user) {
-        // Editar usuario
+        // Editar usuario - password es opcional
         const updateData: any = {
-          name: formData.name,
-          email: formData.email,
-          role: formData.role
+          name: formatName(formData.name),
+          email: formatEmail(formData.email),
+          role: formData.role,
         };
         
-        // Solo incluir password si se proporcionó uno nuevo
-        if (formData.password.trim() !== '') {
+        if (formData.password) {
           updateData.password = formData.password;
         }
-
+        
         await usersService.update(user.id, updateData);
       } else {
-        // Crear nuevo usuario
-        await usersService.create({
-          name: formData.name,
-          email: formData.email,
+        // Crear nuevo usuario - password es obligatorio
+        const createData = {
+          name: formatName(formData.name),
+          email: formatEmail(formData.email),
           role: formData.role,
           password: formData.password
-        });
+        };
+        
+        await usersService.create(createData);
       }
       
       onSuccess();
@@ -88,6 +168,10 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
       setLoading(false);
     }
   };
+
+  // Verificar si hay errores de validación
+  const hasValidationErrors = Object.values(validationErrors).some(err => err !== '');
+  const isFormValid = formData.name && formData.email && (user || formData.password) && !hasValidationErrors;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -117,14 +201,38 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
                 Nombre Completo
               </div>
             </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              placeholder="Juan Pérez"
-              required
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onBlur={() => handleBlur('name')}
+                className={`w-full px-4 py-3 pr-10 border rounded-lg outline-none transition ${
+                  touched.name && validationErrors.name
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : touched.name && !validationErrors.name && formData.name
+                    ? 'border-green-500 focus:ring-2 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                }`}
+                placeholder="Juan Pérez"
+                required
+              />
+              {touched.name && formData.name && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  {validationErrors.name ? (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-500" />
+                  )}
+                </div>
+              )}
+            </div>
+            {touched.name && validationErrors.name && (
+              <p className="text-xs text-red-600 mt-1">{validationErrors.name}</p>
+            )}
+            {touched.name && !validationErrors.name && formData.name && (
+              <p className="text-xs text-green-600 mt-1">✓ Nombre válido</p>
+            )}
           </div>
 
           {/* Email */}
@@ -135,14 +243,38 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
                 Email
               </div>
             </label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              placeholder="usuario@banosforum.com"
-              required
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                onBlur={() => handleBlur('email')}
+                className={`w-full px-4 py-3 pr-10 border rounded-lg outline-none transition ${
+                  touched.email && validationErrors.email
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : touched.email && !validationErrors.email && formData.email
+                    ? 'border-green-500 focus:ring-2 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                }`}
+                placeholder="usuario@empresa.com"
+                required
+              />
+              {touched.email && formData.email && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  {validationErrors.email ? (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-500" />
+                  )}
+                </div>
+              )}
+            </div>
+            {touched.email && validationErrors.email && (
+              <p className="text-xs text-red-600 mt-1">{validationErrors.email}</p>
+            )}
+            {touched.email && !validationErrors.email && formData.email && (
+              <p className="text-xs text-green-600 mt-1">✓ Email válido</p>
+            )}
           </div>
 
           {/* Rol */}
@@ -176,20 +308,43 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                onChange={(e) => handlePasswordChange(e.target.value)}
+                onBlur={() => handleBlur('password')}
+                className={`w-full px-4 py-3 pr-20 border rounded-lg outline-none transition ${
+                  touched.password && validationErrors.password
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : touched.password && !validationErrors.password && formData.password
+                    ? 'border-green-500 focus:ring-2 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                }`}
                 placeholder="••••••••"
                 required={!user}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+                {touched.password && formData.password && (
+                  validationErrors.password ? (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-500" />
+                  )
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-gray-500 mt-1">Mínimo 6 caracteres</p>
+            {touched.password && validationErrors.password && (
+              <p className="text-xs text-red-600 mt-1">{validationErrors.password}</p>
+            )}
+            {!user && (
+              <p className="text-xs text-gray-500 mt-1">
+                Mínimo 6 caracteres, debe incluir letras y números
+              </p>
+            )}
           </div>
 
           {error && (
@@ -209,7 +364,7 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !isFormValid}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Guardando...' : (user ? 'Actualizar' : 'Crear Usuario')}

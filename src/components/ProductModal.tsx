@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { productsService } from '../services/api';
-import { X, Package, DollarSign, Tag } from 'lucide-react';
+import { X, Package, DollarSign, Tag, Check, AlertCircle } from 'lucide-react';
+import { validateProductName, validatePrice } from '../utils/validators';
 
 interface ProductModalProps {
   product: any | null;
@@ -17,6 +18,17 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Estados de validación en tiempo real
+  const [validationErrors, setValidationErrors] = useState({
+    name: '',
+    price: ''
+  });
+
+  const [touched, setTouched] = useState({
+    name: false,
+    price: false
+  });
+
   useEffect(() => {
     if (product) {
       setFormData({
@@ -27,19 +39,74 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     }
   }, [product]);
 
+  // Validación en tiempo real - Nombre
+  const handleNameChange = (value: string) => {
+    setFormData({ ...formData, name: value });
+    
+    if (touched.name) {
+      const validation = validateProductName(value);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        name: validation.valid ? '' : validation.error || '' 
+      }));
+    }
+  };
+
+  // Validación en tiempo real - Precio
+  const handlePriceChange = (value: string) => {
+    setFormData({ ...formData, price: value });
+    
+    if (touched.price) {
+      const validation = validatePrice(value);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        price: validation.valid ? '' : validation.error || '' 
+      }));
+    }
+  };
+
+  const handleBlur = (field: 'name' | 'price') => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    
+    // Validar al perder foco
+    if (field === 'name') {
+      const validation = validateProductName(formData.name);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        name: validation.valid ? '' : validation.error || '' 
+      }));
+    } else if (field === 'price') {
+      const validation = validatePrice(formData.price);
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        price: validation.valid ? '' : validation.error || '' 
+      }));
+
+      // Auto-formatear el precio al perder foco
+      if (validation.valid && validation.value) {
+        setFormData(prev => ({ ...prev, price: validation.value!.toFixed(2) }));
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Validaciones
-    if (!formData.name.trim()) {
-      setError('El nombre es requerido');
+    // Marcar todos como touched
+    setTouched({ name: true, price: true });
+
+    // Validar nombre
+    const nameValidation = validateProductName(formData.name);
+    if (!nameValidation.valid) {
+      setValidationErrors(prev => ({ ...prev, name: nameValidation.error || '' }));
       return;
     }
 
-    const price = parseFloat(formData.price);
-    if (isNaN(price) || price <= 0) {
-      setError('El precio debe ser un número mayor a 0');
+    // Validar precio
+    const priceValidation = validatePrice(formData.price);
+    if (!priceValidation.valid) {
+      setValidationErrors(prev => ({ ...prev, price: priceValidation.error || '' }));
       return;
     }
 
@@ -47,7 +114,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     try {
       const productData = {
         name: formData.name.trim(),
-        price: price,
+        price: priceValidation.value!,
         type: formData.type
       };
 
@@ -64,6 +131,10 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       setLoading(false);
     }
   };
+
+  // Verificar si hay errores de validación
+  const hasValidationErrors = Object.values(validationErrors).some(err => err !== '');
+  const isFormValid = formData.name && formData.price && !hasValidationErrors;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -93,14 +164,41 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
                 Nombre del Producto/Servicio
               </div>
             </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              placeholder="Ej: Baño, Ducha, Locker 2 horas"
-              required
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onBlur={() => handleBlur('name')}
+                className={`w-full px-4 py-3 pr-10 border rounded-lg outline-none transition ${
+                  touched.name && validationErrors.name
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : touched.name && !validationErrors.name && formData.name
+                    ? 'border-green-500 focus:ring-2 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                }`}
+                placeholder="Ej: Baño, Ducha, Locker 2 horas"
+                required
+              />
+              {touched.name && formData.name && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  {validationErrors.name ? (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-500" />
+                  )}
+                </div>
+              )}
+            </div>
+            {touched.name && validationErrors.name && (
+              <p className="text-xs text-red-600 mt-1">{validationErrors.name}</p>
+            )}
+            {touched.name && !validationErrors.name && formData.name && (
+              <p className="text-xs text-green-600 mt-1">✓ Nombre válido</p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Entre 3 y 50 caracteres
+            </p>
           </div>
 
           {/* Tipo */}
@@ -138,14 +236,39 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
                 type="number"
                 step="0.01"
                 min="0.01"
+                max="999999"
                 value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                onChange={(e) => handlePriceChange(e.target.value)}
+                onBlur={() => handleBlur('price')}
+                className={`w-full pl-8 pr-10 py-3 border rounded-lg outline-none transition ${
+                  touched.price && validationErrors.price
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : touched.price && !validationErrors.price && formData.price
+                    ? 'border-green-500 focus:ring-2 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                }`}
                 placeholder="15.00"
                 required
               />
+              {touched.price && formData.price && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                  {validationErrors.price ? (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-500" />
+                  )}
+                </div>
+              )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">Precio en pesos mexicanos</p>
+            {touched.price && validationErrors.price && (
+              <p className="text-xs text-red-600 mt-1">{validationErrors.price}</p>
+            )}
+            {touched.price && !validationErrors.price && formData.price && (
+              <p className="text-xs text-green-600 mt-1">✓ Precio válido</p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              Entre $0.01 y $999,999.00
+            </p>
           </div>
 
           {error && (
@@ -165,7 +288,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !isFormValid}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Guardando...' : (product ? 'Actualizar' : 'Crear Producto')}
