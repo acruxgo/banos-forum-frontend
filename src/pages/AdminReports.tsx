@@ -4,8 +4,21 @@ import type { Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { transactionsService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, LogOut, Calendar, TrendingUp, Users as UsersIcon, Package, Key, BarChart3 } from 'lucide-react';
+import { LogOut, TrendingUp, Users as UsersIcon, Package, Key, BarChart3 } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import { SearchBar } from '../components/common/SearchBar';
+import { FilterSelect } from '../components/common/FilterSelect';
+import { DateRangeFilter } from '../components/common/DateRangeFilter';
+import { FilterActions } from '../components/common/FilterActions';
+import { Pagination } from '../components/common/Pagination';
+import { useTableFilters } from '../hooks/useTableFilters';
+
+interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
 
 export default function AdminReports() {
   const user = useAuthStore((state) => state.user);
@@ -15,55 +28,72 @@ export default function AdminReports() {
   const location = useLocation();
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    total: 0,
+    page: 1,
+    limit: 50,
+    totalPages: 0
+  });
+  const [loading, setLoading] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
-  useEffect(() => {
-    loadTransactions();
-  }, [dateRange]);
+  // Hook de filtros y paginación
+  const {
+    filters,
+    page,
+    limit,
+    updateFilter,
+    clearFilters,
+    changePage,
+    changeLimit,
+    getQueryParams,
+    hasActiveFilters
+  } = useTableFilters({
+    initialLimit: 50,
+    initialFilters: {
+      search: '',
+      payment_method: 'all',
+      status: 'all',
+      date_from: '',
+      date_to: ''
+    }
+  });
 
+  // Cargar transacciones con filtros
   const loadTransactions = async () => {
+    setLoading(true);
     try {
-      const response = await transactionsService.getAll();
-      setTransactions(response.data.data);
-    } catch (error) {
-      console.error('Error al cargar transacciones:', error);
+      const params = getQueryParams();
+      const response = await transactionsService.getAll(params);
+      
+      if (response.data.success) {
+        setTransactions(response.data.data);
+        setPagination(response.data.pagination);
+      }
+    } catch (err) {
+      console.error('Error al cargar transacciones:', err);
+    } finally {
+      setLoading(false);
     }
   };
+
+  // Recargar cuando cambien los filtros o la página
+  useEffect(() => {
+    loadTransactions();
+  }, [page, limit, filters.search, filters.payment_method, filters.status, filters.date_from, filters.date_to]);
 
   const handlePasswordChanged = () => {
     alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
     logout();
   };
 
-  const filterTransactionsByDate = (transactions: Transaction[]) => {
-    const now = new Date();
-    const filtered = transactions.filter((t) => {
-      const transactionDate = new Date(t.created_at);
-      
-      if (dateRange === 'today') {
-        return transactionDate.toDateString() === now.toDateString();
-      } else if (dateRange === 'week') {
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return transactionDate >= weekAgo;
-      } else {
-        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        return transactionDate >= monthAgo;
-      }
-    });
-    
-    return filtered;
-  };
-
-  const filteredTransactions = filterTransactionsByDate(transactions);
-
   // Calcular estadísticas
-  const totalSales = filteredTransactions.reduce((sum, t) => sum + Number(t.total), 0);
-  const totalTransactions = filteredTransactions.length;
-  const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+  const totalSales = transactions.reduce((sum, t) => sum + Number(t.total), 0);
+  const totalTransactions = pagination.total;
+  const averageTicket = totalTransactions > 0 ? totalSales / transactions.length : 0;
 
   // Ventas por producto
-  const salesByProduct = filteredTransactions.reduce((acc: any, t) => {
+  const salesByProduct = transactions.reduce((acc: any, t) => {
     const productName = t.products?.name || 'Desconocido';
     if (!acc[productName]) {
       acc[productName] = { name: productName, total: 0, count: 0 };
@@ -76,7 +106,7 @@ export default function AdminReports() {
   const productData = Object.values(salesByProduct);
 
   // Ventas por método de pago
-  const salesByPaymentMethod = filteredTransactions.reduce((acc: any, t) => {
+  const salesByPaymentMethod = transactions.reduce((acc: any, t) => {
     const method = t.payment_method;
     if (!acc[method]) {
       acc[method] = { name: method, value: 0 };
@@ -91,7 +121,7 @@ export default function AdminReports() {
 
   const exportToCSV = () => {
     const headers = ['Fecha', 'Producto', 'Cantidad', 'Precio Unit.', 'Total', 'Método Pago', 'Estado'];
-    const rows = filteredTransactions.map(t => [
+    const rows = transactions.map(t => [
       new Date(t.created_at).toLocaleString('es-MX'),
       t.products?.name || 'N/A',
       t.quantity,
@@ -109,9 +139,25 @@ export default function AdminReports() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `reporte_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `reporte_transacciones_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
+
+  // Opciones para los filtros
+  const paymentMethodOptions = [
+    { value: 'all', label: 'Todos los métodos' },
+    { value: 'card', label: '💳 Tarjeta' },
+    { value: 'transfer', label: '🏦 Transferencia' },
+    { value: 'cash', label: '💵 Efectivo' }
+  ];
+
+  const statusOptions = [
+    { value: 'all', label: 'Todos los estados' },
+    { value: 'completed', label: '✅ Completado' },
+    { value: 'pending', label: '⏳ Pendiente' },
+    { value: 'failed', label: '❌ Fallido' },
+    { value: 'refunded', label: '↩️ Reembolsado' }
+  ];
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -213,66 +259,52 @@ export default function AdminReports() {
       </header>
 
       <div className="max-w-7xl mx-auto p-4 space-y-6">
-        {/* Filtros con color de la empresa */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Calendar style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
-              <h2 className="text-lg font-bold text-gray-800">Período</h2>
+        {/* Filtros */}
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="space-y-4">
+            {/* Primera fila: Búsqueda y método de pago */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Buscar
+                </label>
+                <SearchBar
+                  value={filters.search}
+                  onChange={(value) => updateFilter('search', value)}
+                  placeholder="Buscar por producto..."
+                />
+              </div>
+
+              <FilterSelect
+                label="Método de Pago"
+                value={filters.payment_method}
+                onChange={(value) => updateFilter('payment_method', value)}
+                options={paymentMethodOptions}
+              />
+
+              <FilterSelect
+                label="Estado"
+                value={filters.status}
+                onChange={(value) => updateFilter('status', value)}
+                options={statusOptions}
+              />
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDateRange('today')}
-                className={`px-4 py-2 rounded-lg transition ${
-                  dateRange === 'today'
-                    ? 'text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-                style={
-                  dateRange === 'today'
-                    ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                    : {}
-                }
-              >
-                Hoy
-              </button>
-              <button
-                onClick={() => setDateRange('week')}
-                className={`px-4 py-2 rounded-lg transition ${
-                  dateRange === 'week'
-                    ? 'text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-                style={
-                  dateRange === 'week'
-                    ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                    : {}
-                }
-              >
-                Última Semana
-              </button>
-              <button
-                onClick={() => setDateRange('month')}
-                className={`px-4 py-2 rounded-lg transition ${
-                  dateRange === 'month'
-                    ? 'text-white'
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
-                style={
-                  dateRange === 'month'
-                    ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                    : {}
-                }
-              >
-                Último Mes
-              </button>
-              <button
-                onClick={exportToCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-              >
-                <Download size={20} />
-                Exportar CSV
-              </button>
+
+            {/* Segunda fila: Rango de fechas */}
+            <DateRangeFilter
+              dateFrom={filters.date_from}
+              dateTo={filters.date_to}
+              onDateFromChange={(value) => updateFilter('date_from', value)}
+              onDateToChange={(value) => updateFilter('date_to', value)}
+            />
+
+            {/* Acciones */}
+            <div className="flex justify-between items-center">
+              <FilterActions
+                onClearFilters={clearFilters}
+                onExport={exportToCSV}
+                hasActiveFilters={hasActiveFilters()}
+              />
             </div>
           </div>
         </div>
@@ -363,46 +395,83 @@ export default function AdminReports() {
         </div>
 
         {/* Tabla Detallada */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">Detalle de Transacciones</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cant.</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Método</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredTransactions.map((t) => (
-                  <tr key={t.id}>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {new Date(t.created_at).toLocaleString('es-MX')}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-800">
-                      {t.products?.name || 'N/A'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{t.quantity}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      ${t.unit_price.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-800">
-                      ${t.total.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs capitalize">
-                        {t.payment_method}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          <div className="p-6 border-b">
+            <h2 className="text-lg font-bold text-gray-800">Detalle de Transacciones</h2>
           </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className="mx-auto text-gray-400 mb-4" size={48} />
+              <p className="text-gray-500">No se encontraron transacciones</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cant.</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio Unit.</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Método</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {transactions.map((t) => (
+                      <tr key={t.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {new Date(t.created_at).toLocaleString('es-MX')}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-800">
+                          {t.products?.name || 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{t.quantity}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          ${t.unit_price.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-800">
+                          ${t.total.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs capitalize">
+                            {t.payment_method === 'card' ? '💳' : t.payment_method === 'transfer' ? '🏦' : '💵'} {t.payment_method}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            t.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            t.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                            t.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {t.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación */}
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                itemsPerPage={pagination.limit}
+                onPageChange={changePage}
+                onItemsPerPageChange={changeLimit}
+              />
+            </>
+          )}
         </div>
       </div>
 

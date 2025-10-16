@@ -6,6 +6,11 @@ import BusinessModal from '../components/BusinessModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ConfirmModal from '../components/ConfirmModal';
 import Toast from '../components/Toast';
+import { SearchBar } from '../components/common/SearchBar';
+import { FilterSelect } from '../components/common/FilterSelect';
+import { FilterActions } from '../components/common/FilterActions';
+import { Pagination } from '../components/common/Pagination';
+import { useTableFilters } from '../hooks/useTableFilters';
 
 interface Business {
   id: string;
@@ -19,11 +24,24 @@ interface Business {
   created_at: string;
 }
 
+interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export default function BusinessManagement() {
   const currentUser = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
 
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0
+  });
   const [loading, setLoading] = useState(false);
   const [showBusinessModal, setShowBusinessModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -44,26 +62,47 @@ export default function BusinessManagement() {
   const [confirmAction, setConfirmAction] = useState<any>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  useEffect(() => {
-    loadBusinesses();
-  }, []);
+  // Hook de filtros y paginación
+  const {
+    filters,
+    page,
+    limit,
+    updateFilter,
+    clearFilters,
+    changePage,
+    changeLimit,
+    getQueryParams,
+    hasActiveFilters
+  } = useTableFilters({
+    initialLimit: 10,
+    initialFilters: {
+      search: '',
+      plan: 'all',
+      active: 'all'
+    }
+  });
 
+  // Cargar empresas con filtros
   const loadBusinesses = async () => {
     setLoading(true);
     try {
+      const params = getQueryParams();
       const [businessesRes, statsRes] = await Promise.all([
-        businessesService.getAll(),
+        businessesService.getAll(params),
         businessesService.getGlobalStats()
       ]);
       
-      setBusinesses(businessesRes.data.data);
+      if (businessesRes.data.success) {
+        setBusinesses(businessesRes.data.data);
+        setPagination(businessesRes.data.pagination);
+      }
       
       if (statsRes.data.success) {
         setGlobalStats(statsRes.data.data.overview);
         setTopBusinesses(statsRes.data.data.topBusinesses);
       }
-    } catch (error) {
-      console.error('Error al cargar empresas:', error);
+    } catch (err) {
+      console.error('Error al cargar empresas:', err);
       setToast({
         message: 'Error al cargar empresas',
         type: 'error'
@@ -72,6 +111,11 @@ export default function BusinessManagement() {
       setLoading(false);
     }
   };
+
+  // Recargar cuando cambien los filtros o la página
+  useEffect(() => {
+    loadBusinesses();
+  }, [page, limit, filters.search, filters.plan, filters.active]);
 
   const handleCreateBusiness = () => {
     setEditingBusiness(null);
@@ -95,7 +139,8 @@ export default function BusinessManagement() {
             type: 'success'
           });
           loadBusinesses();
-        } catch (error) {
+        } catch (err) {
+          console.error('Error al cambiar estado:', err);
           setToast({
             message: 'Error al cambiar estado de la empresa',
             type: 'error'
@@ -144,6 +189,20 @@ export default function BusinessManagement() {
       default: return plan;
     }
   };
+
+  // Opciones para los filtros
+  const planOptions = [
+    { value: 'all', label: 'Todos los planes' },
+    { value: 'basic', label: '📦 Básico' },
+    { value: 'premium', label: '⭐ Premium' },
+    { value: 'enterprise', label: '💎 Enterprise' }
+  ];
+
+  const activeOptions = [
+    { value: 'all', label: 'Todos los estados' },
+    { value: 'true', label: 'Activas' },
+    { value: 'false', label: 'Inactivas' }
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50">
@@ -274,7 +333,7 @@ export default function BusinessManagement() {
             <div className="flex items-center gap-2">
               <Building2 className="text-purple-600" size={24} />
               <h2 className="text-lg font-bold text-gray-800">
-                Gestión de Empresas ({businesses.length})
+                Gestión de Empresas ({pagination.total})
               </h2>
             </div>
             <div className="flex gap-2">
@@ -297,98 +356,153 @@ export default function BusinessManagement() {
           </div>
         </div>
 
-        {/* Tabla de Empresas */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Empresa
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Slug
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Plan
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fecha Creación
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {businesses.map((business) => (
-                  <tr key={business.id} className={!business.active ? 'bg-gray-50' : ''}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{business.name}</div>
-                      <div className="text-xs text-gray-500">{business.phone}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">{business.slug}</code>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-600">{business.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPlanBadgeColor(business.plan)}`}>
-                        {getPlanLabel(business.plan)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        business.active 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {business.active ? '✓ Activa' : '✗ Inactiva'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(business.created_at).toLocaleDateString('es-MX')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEditBusiness(business)}
-                          className="text-blue-600 hover:text-blue-900 transition"
-                          title="Editar"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(business)}
-                          className={`transition ${
-                            business.active 
-                              ? 'text-red-600 hover:text-red-900' 
-                              : 'text-green-600 hover:text-green-900'
-                          }`}
-                          title={business.active ? 'Desactivar' : 'Activar'}
-                        >
-                          <Power size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Filtros */}
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            {/* Barra de búsqueda */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Buscar
+              </label>
+              <SearchBar
+                value={filters.search}
+                onChange={(value) => updateFilter('search', value)}
+                placeholder="Buscar por nombre, email o slug..."
+              />
+            </div>
+
+            {/* Filtro por plan */}
+            <FilterSelect
+              label="Plan"
+              value={filters.plan}
+              onChange={(value) => updateFilter('plan', value)}
+              options={planOptions}
+            />
+
+            {/* Filtro por estado */}
+            <FilterSelect
+              label="Estado"
+              value={filters.active}
+              onChange={(value) => updateFilter('active', value)}
+              options={activeOptions}
+            />
           </div>
 
-          {businesses.length === 0 && !loading && (
+          {/* Acciones de filtros */}
+          <FilterActions
+            onClearFilters={clearFilters}
+            hasActiveFilters={hasActiveFilters()}
+          />
+        </div>
+
+        {/* Tabla de Empresas */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            </div>
+          ) : businesses.length === 0 ? (
             <div className="text-center py-12">
               <Building2 className="mx-auto text-gray-400 mb-4" size={48} />
-              <p className="text-gray-500">No hay empresas registradas</p>
+              <p className="text-gray-500">No se encontraron empresas</p>
             </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Empresa
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Slug
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Plan
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Estado
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Fecha Creación
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {businesses.map((business) => (
+                      <tr key={business.id} className={!business.active ? 'bg-gray-50' : 'hover:bg-gray-50'}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{business.name}</div>
+                          <div className="text-xs text-gray-500">{business.phone}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <code className="text-xs bg-gray-100 px-2 py-1 rounded">{business.slug}</code>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600">{business.email}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPlanBadgeColor(business.plan)}`}>
+                            {getPlanLabel(business.plan)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            business.active 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {business.active ? '✓ Activa' : '✗ Inactiva'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {new Date(business.created_at).toLocaleDateString('es-MX')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleEditBusiness(business)}
+                              className="text-blue-600 hover:text-blue-900 transition"
+                              title="Editar"
+                            >
+                              <Edit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(business)}
+                              className={`transition ${
+                                business.active 
+                                  ? 'text-red-600 hover:text-red-900' 
+                                  : 'text-green-600 hover:text-green-900'
+                              }`}
+                              title={business.active ? 'Desactivar' : 'Activar'}
+                            >
+                              <Power size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación */}
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                itemsPerPage={pagination.limit}
+                onPageChange={changePage}
+                onItemsPerPageChange={changeLimit}
+              />
+            </>
           )}
         </div>
       </div>
