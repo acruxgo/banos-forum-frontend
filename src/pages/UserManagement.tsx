@@ -7,6 +7,11 @@ import UserModal from '../components/UserModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ConfirmModal from '../components/ConfirmModal';
 import Toast from '../components/Toast';
+import { SearchBar } from '../components/common/SearchBar';
+import { FilterSelect } from '../components/common/FilterSelect';
+import { FilterActions } from '../components/common/FilterActions';
+import { Pagination } from '../components/common/Pagination';
+import { useTableFilters } from '../hooks/useTableFilters';
 
 interface User {
   id: string;
@@ -17,6 +22,13 @@ interface User {
   created_at: string;
 }
 
+interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export default function UserManagement() {
   const currentUser = useAuthStore((state) => state.user);
   const business = useAuthStore((state) => state.business);
@@ -25,6 +37,12 @@ export default function UserManagement() {
   const location = useLocation();
 
   const [users, setUsers] = useState<User[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0
+  });
   const [loading, setLoading] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -35,15 +53,37 @@ export default function UserManagement() {
   const [confirmAction, setConfirmAction] = useState<any>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  // Hook de filtros y paginación
+  const {
+    filters,
+    page,
+    limit,
+    updateFilter,
+    clearFilters,
+    changePage,
+    changeLimit,
+    getQueryParams,
+    hasActiveFilters
+  } = useTableFilters({
+    initialLimit: 10,
+    initialFilters: {
+      search: '',
+      role: 'all',
+      active: 'all'
+    }
+  });
 
+  // Cargar usuarios con filtros
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const response = await usersService.getAll();
-      setUsers(response.data.data);
+      const params = getQueryParams();
+      const response = await usersService.getAll(params);
+      
+      if (response.data.success) {
+        setUsers(response.data.data);
+        setPagination(response.data.pagination);
+      }
     } catch (error) {
       console.error('Error al cargar usuarios:', error);
       setToast({
@@ -54,6 +94,11 @@ export default function UserManagement() {
       setLoading(false);
     }
   };
+
+  // Recargar cuando cambien los filtros o la página
+  useEffect(() => {
+    loadUsers();
+  }, [page, limit, filters.search, filters.role, filters.active]);
 
   const handleCreateUser = () => {
     setEditingUser(null);
@@ -117,6 +162,20 @@ export default function UserManagement() {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  // Opciones para los filtros
+  const roleOptions = [
+    { value: 'all', label: 'Todos los roles' },
+    { value: 'admin', label: 'Administrador' },
+    { value: 'supervisor', label: 'Supervisor' },
+    { value: 'cajero', label: 'Cajero' }
+  ];
+
+  const activeOptions = [
+    { value: 'all', label: 'Todos los estados' },
+    { value: 'true', label: 'Activos' },
+    { value: 'false', label: 'Inactivos' }
+  ];
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -224,7 +283,7 @@ export default function UserManagement() {
             <div className="flex items-center gap-2">
               <Users style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
               <h2 className="text-lg font-bold text-gray-800">
-                Usuarios del Sistema ({users.length})
+                Usuarios del Sistema ({pagination.total})
               </h2>
             </div>
             <div className="flex gap-2">
@@ -248,92 +307,144 @@ export default function UserManagement() {
           </div>
         </div>
 
-        {/* Tabla de Usuarios */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nombre
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rol
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fecha Creación
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id} className={!user.active ? 'bg-gray-50' : ''}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-600">{user.email}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        user.active 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {user.active ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(user.created_at).toLocaleDateString('es-MX')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEditUser(user)}
-                          className="hover:text-blue-900 transition"
-                          style={{ color: business?.primary_color || '#3B82F6' }}
-                          title="Editar"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(user)}
-                          className={`transition ${
-                            user.active 
-                              ? 'text-red-600 hover:text-red-900' 
-                              : 'text-green-600 hover:text-green-900'
-                          }`}
-                          title={user.active ? 'Desactivar' : 'Activar'}
-                        >
-                          <Power size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Filtros */}
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            {/* Barra de búsqueda */}
+            <div className="md:col-span-2">
+              <SearchBar
+                value={filters.search}
+                onChange={(value) => updateFilter('search', value)}
+                placeholder="Buscar por nombre o email..."
+              />
+            </div>
+
+            {/* Filtro por rol */}
+            <FilterSelect
+              label="Rol"
+              value={filters.role}
+              onChange={(value) => updateFilter('role', value)}
+              options={roleOptions}
+            />
+
+            {/* Filtro por estado */}
+            <FilterSelect
+              label="Estado"
+              value={filters.active}
+              onChange={(value) => updateFilter('active', value)}
+              options={activeOptions}
+            />
           </div>
 
-          {users.length === 0 && !loading && (
+          {/* Acciones de filtros */}
+          <FilterActions
+            onClearFilters={clearFilters}
+            hasActiveFilters={hasActiveFilters()}
+          />
+        </div>
+
+        {/* Tabla de Usuarios */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : users.length === 0 ? (
             <div className="text-center py-12">
               <Users className="mx-auto text-gray-400 mb-4" size={48} />
-              <p className="text-gray-500">No hay usuarios registrados</p>
+              <p className="text-gray-500">No se encontraron usuarios</p>
             </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Nombre
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Rol
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Estado
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Fecha Creación
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {users.map((user) => (
+                      <tr key={user.id} className={!user.active ? 'bg-gray-50' : 'hover:bg-gray-50'}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600">{user.email}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            user.active 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {user.active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {new Date(user.created_at).toLocaleDateString('es-MX')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="hover:text-blue-900 transition"
+                              style={{ color: business?.primary_color || '#3B82F6' }}
+                              title="Editar"
+                            >
+                              <Edit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(user)}
+                              className={`transition ${
+                                user.active 
+                                  ? 'text-red-600 hover:text-red-900' 
+                                  : 'text-green-600 hover:text-green-900'
+                              }`}
+                              title={user.active ? 'Desactivar' : 'Activar'}
+                            >
+                              <Power size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación */}
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                itemsPerPage={pagination.limit}
+                onPageChange={changePage}
+                onItemsPerPageChange={changeLimit}
+              />
+            </>
           )}
         </div>
       </div>

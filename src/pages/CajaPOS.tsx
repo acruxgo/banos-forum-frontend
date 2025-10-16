@@ -37,8 +37,8 @@ export default function CajaPOS() {
     try {
       const response = await productsService.getAll();
       setProducts(response.data.data.filter((p: Product) => p.active));
-    } catch (error) {
-      console.error('Error al cargar productos:', error);
+    } catch (err) {
+      console.error('Error al cargar productos:', err);
       setToast({
         message: 'Error al cargar productos',
         type: 'error'
@@ -51,8 +51,8 @@ export default function CajaPOS() {
       const response = await shiftsService.getActive();
       const userShift = response.data.data.find((s: Shift) => s.user_id === user?.id);
       setCurrentShift(userShift || null);
-    } catch (error) {
-      console.error('Error al verificar turno:', error);
+    } catch (err) {
+      console.error('Error al verificar turno:', err);
     }
   };
 
@@ -69,7 +69,8 @@ export default function CajaPOS() {
           type: 'success'
         });
       })
-      .catch((error) => {
+      .catch((err) => {
+        console.error('Error al iniciar turno:', err);
         setToast({
           message: 'Error al iniciar turno',
           type: 'error'
@@ -140,7 +141,8 @@ export default function CajaPOS() {
             type: 'success'
           });
           setCart([]);
-        } catch (error) {
+        } catch (err) {
+          console.error('Error al procesar venta:', err);
           setToast({
             message: 'Error al procesar la venta',
             type: 'error'

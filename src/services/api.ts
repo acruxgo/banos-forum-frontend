@@ -45,9 +45,9 @@ export const authService = {
     api.post('/auth/change-password', { currentPassword, newPassword }),
 };
 
-// Servicios de productos
+// Servicios de productos - ACTUALIZADO
 export const productsService = {
-  getAll: () => api.get('/products'),
+  getAll: (params?: Record<string, any>) => api.get('/products', { params }),
   getById: (id: string) => api.get(`/products/${id}`),
   create: (productData: { name: string; price: number; type: string }) =>
     api.post('/products', productData),
@@ -56,9 +56,9 @@ export const productsService = {
   toggleActive: (id: string) => api.patch(`/products/${id}/toggle-active`),
 };
 
-// Servicios de empresas (solo super admin)
+// Servicios de empresas (solo super admin) - ACTUALIZADO
 export const businessesService = {
-  getAll: () => api.get('/businesses'),
+  getAll: (params?: Record<string, any>) => api.get('/businesses', { params }),
   getById: (id: string) => api.get(`/businesses/${id}`),
   getGlobalStats: () => api.get('/businesses/stats/global'),
   create: (businessData: {
@@ -76,9 +76,9 @@ export const businessesService = {
   toggleActive: (id: string) => api.patch(`/businesses/${id}/toggle-active`),
 };
 
-// Servicios de usuarios
+// Servicios de usuarios - ACTUALIZADO
 export const usersService = {
-  getAll: () => api.get('/users'),
+  getAll: (params?: Record<string, any>) => api.get('/users', { params }),
   getById: (id: string) => api.get(`/users/${id}`),
   create: (userData: { email: string; name: string; role: string; password: string }) =>
     api.post('/users', userData),
@@ -97,9 +97,9 @@ export const shiftsService = {
     api.put(`/shifts/${shiftId}/close`, { final_cash: finalCash }),
 };
 
-// Servicios de transacciones
+// Servicios de transacciones - ACTUALIZADO
 export const transactionsService = {
-  getAll: () => api.get('/transactions'),
+  getAll: (params?: Record<string, any>) => api.get('/transactions', { params }),
   getByShift: (shiftId: string) => api.get(`/transactions/shift/${shiftId}`),
   create: (transaction: any) => api.post('/transactions', transaction),
   getStatsToday: () => api.get('/transactions/stats/today'),
