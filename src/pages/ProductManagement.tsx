@@ -7,6 +7,11 @@ import ProductModal from '../components/ProductModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ConfirmModal from '../components/ConfirmModal';
 import Toast from '../components/Toast';
+import { SearchBar } from '../components/common/SearchBar';
+import { FilterSelect } from '../components/common/FilterSelect';
+import { FilterActions } from '../components/common/FilterActions';
+import { Pagination } from '../components/common/Pagination';
+import { useTableFilters } from '../hooks/useTableFilters';
 
 interface Product {
   id: string;
@@ -17,6 +22,13 @@ interface Product {
   created_at: string;
 }
 
+interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export default function ProductManagement() {
   const currentUser = useAuthStore((state) => state.user);
   const business = useAuthStore((state) => state.business);
@@ -25,6 +37,12 @@ export default function ProductManagement() {
   const location = useLocation();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0
+  });
   const [loading, setLoading] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -35,17 +53,39 @@ export default function ProductManagement() {
   const [confirmAction, setConfirmAction] = useState<any>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+  // Hook de filtros y paginación
+  const {
+    filters,
+    page,
+    limit,
+    updateFilter,
+    clearFilters,
+    changePage,
+    changeLimit,
+    getQueryParams,
+    hasActiveFilters
+  } = useTableFilters({
+    initialLimit: 10,
+    initialFilters: {
+      search: '',
+      type: 'all',
+      active: 'all'
+    }
+  });
 
+  // Cargar productos con filtros
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const response = await productsService.getAll();
-      setProducts(response.data.data);
-    } catch (error) {
-      console.error('Error al cargar productos:', error);
+      const params = getQueryParams();
+      const response = await productsService.getAll(params);
+      
+      if (response.data.success) {
+        setProducts(response.data.data);
+        setPagination(response.data.pagination);
+      }
+    } catch (err) {
+      console.error('Error al cargar productos:', err);
       setToast({
         message: 'Error al cargar productos',
         type: 'error'
@@ -54,6 +94,11 @@ export default function ProductManagement() {
       setLoading(false);
     }
   };
+
+  // Recargar cuando cambien los filtros o la página
+  useEffect(() => {
+    loadProducts();
+  }, [page, limit, filters.search, filters.type, filters.active]);
 
   const handleCreateProduct = () => {
     setEditingProduct(null);
@@ -77,7 +122,8 @@ export default function ProductManagement() {
             type: 'success'
           });
           loadProducts();
-        } catch (error) {
+        } catch (err) {
+          console.error('Error al cambiar estado:', err);
           setToast({
             message: 'Error al cambiar estado del producto',
             type: 'error'
@@ -126,6 +172,20 @@ export default function ProductManagement() {
       default: return type;
     }
   };
+
+  // Opciones para los filtros
+  const typeOptions = [
+    { value: 'all', label: 'Todos los tipos' },
+    { value: 'bano', label: '🚽 Baño' },
+    { value: 'ducha', label: '🚿 Ducha' },
+    { value: 'locker', label: '🔐 Locker' }
+  ];
+
+  const activeOptions = [
+    { value: 'all', label: 'Todos los estados' },
+    { value: 'true', label: 'Activos' },
+    { value: 'false', label: 'Inactivos' }
+  ];
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -233,7 +293,7 @@ export default function ProductManagement() {
             <div className="flex items-center gap-2">
               <Package style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
               <h2 className="text-lg font-bold text-gray-800">
-                Productos/Servicios ({products.length})
+                Productos/Servicios ({pagination.total})
               </h2>
             </div>
             <div className="flex gap-2">
@@ -257,92 +317,147 @@ export default function ProductManagement() {
           </div>
         </div>
 
-        {/* Tabla de Productos */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Producto/Servicio
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tipo
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Precio
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fecha Creación
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {products.map((product) => (
-                  <tr key={product.id} className={!product.active ? 'bg-gray-50' : ''}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(product.type)}`}>
-                        {getTypeLabel(product.type)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-semibold text-green-600">${product.price.toFixed(2)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        product.active 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {product.active ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {new Date(product.created_at).toLocaleDateString('es-MX')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => handleEditProduct(product)}
-                          className="hover:text-blue-900 transition"
-                          style={{ color: business?.primary_color || '#3B82F6' }}
-                          title="Editar"
-                        >
-                          <Edit size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleActive(product)}
-                          className={`transition ${
-                            product.active 
-                              ? 'text-red-600 hover:text-red-900' 
-                              : 'text-green-600 hover:text-green-900'
-                          }`}
-                          title={product.active ? 'Desactivar' : 'Activar'}
-                        >
-                          <Power size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Filtros */}
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            {/* Barra de búsqueda */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Buscar
+              </label>
+              <SearchBar
+                value={filters.search}
+                onChange={(value) => updateFilter('search', value)}
+                placeholder="Buscar producto por nombre..."
+              />
+            </div>
+
+            {/* Filtro por tipo */}
+            <FilterSelect
+              label="Tipo"
+              value={filters.type}
+              onChange={(value) => updateFilter('type', value)}
+              options={typeOptions}
+            />
+
+            {/* Filtro por estado */}
+            <FilterSelect
+              label="Estado"
+              value={filters.active}
+              onChange={(value) => updateFilter('active', value)}
+              options={activeOptions}
+            />
           </div>
 
-          {products.length === 0 && !loading && (
+          {/* Acciones de filtros */}
+          <FilterActions
+            onClearFilters={clearFilters}
+            hasActiveFilters={hasActiveFilters()}
+          />
+        </div>
+
+        {/* Tabla de Productos */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : products.length === 0 ? (
             <div className="text-center py-12">
               <Package className="mx-auto text-gray-400 mb-4" size={48} />
-              <p className="text-gray-500">No hay productos registrados</p>
+              <p className="text-gray-500">No se encontraron productos</p>
             </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Producto/Servicio
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tipo
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Precio
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Estado
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Fecha Creación
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {products.map((product) => (
+                      <tr key={product.id} className={!product.active ? 'bg-gray-50' : 'hover:bg-gray-50'}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(product.type)}`}>
+                            {getTypeLabel(product.type)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-semibold text-green-600">${product.price.toFixed(2)}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            product.active 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {product.active ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          {new Date(product.created_at).toLocaleDateString('es-MX')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => handleEditProduct(product)}
+                              className="hover:text-blue-900 transition"
+                              style={{ color: business?.primary_color || '#3B82F6' }}
+                              title="Editar"
+                            >
+                              <Edit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(product)}
+                              className={`transition ${
+                                product.active 
+                                  ? 'text-red-600 hover:text-red-900' 
+                                  : 'text-green-600 hover:text-green-900'
+                              }`}
+                              title={product.active ? 'Desactivar' : 'Activar'}
+                            >
+                              <Power size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Paginación */}
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                itemsPerPage={pagination.limit}
+                onPageChange={changePage}
+                onItemsPerPageChange={changeLimit}
+              />
+            </>
           )}
         </div>
       </div>

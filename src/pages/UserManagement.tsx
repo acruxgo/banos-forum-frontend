@@ -312,6 +312,9 @@ export default function UserManagement() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             {/* Barra de búsqueda */}
             <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Buscar
+              </label>
               <SearchBar
                 value={filters.search}
                 onChange={(value) => updateFilter('search', value)}
