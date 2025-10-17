@@ -1,7 +1,6 @@
 import { useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { X, Printer, Send, Download } from 'lucide-react';
-import { ticketsService } from '../services/api';
+import { X, Printer, Send } from 'lucide-react';
 
 interface TicketModalProps {
   ticket: {
