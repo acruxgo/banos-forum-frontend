@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useCacheStore } from '../store/cacheStore';
 import { usersService } from '../services/api';
 import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -36,7 +37,10 @@ export default function UserManagement() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [users, setUsers] = useState<User[]>([]);
+  // Caché
+  const { getUsers, setUsers, invalidateUsers } = useCacheStore();
+
+  const [users, setLocalUsers] = useState<User[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     total: 0,
     page: 1,
@@ -73,16 +77,38 @@ export default function UserManagement() {
     }
   });
 
-  // Cargar usuarios con filtros
-  const loadUsers = async () => {
+  // Cargar usuarios con caché
+  const loadUsers = async (forceRefresh = false) => {
+    // Si no hay filtros activos y no es refresh forzado, intentar usar caché
+    if (!forceRefresh && !hasActiveFilters() && page === 1) {
+      const cachedUsers = getUsers();
+      if (cachedUsers && cachedUsers.length > 0) {
+        console.log('✨ Usuarios cargados desde caché');
+        setLocalUsers(cachedUsers);
+        setPagination({
+          total: cachedUsers.length,
+          page: 1,
+          limit: limit,
+          totalPages: Math.ceil(cachedUsers.length / limit)
+        });
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const params = getQueryParams();
       const response = await usersService.getAll(params);
       
       if (response.data.success) {
-        setUsers(response.data.data);
+        setLocalUsers(response.data.data);
         setPagination(response.data.pagination);
+        
+        // Guardar en caché solo si no hay filtros (datos completos)
+        if (!hasActiveFilters() && page === 1) {
+          setUsers(response.data.data);
+          console.log('💾 Usuarios guardados en caché');
+        }
       }
     } catch (error) {
       console.error('Error al cargar usuarios:', error);
@@ -121,7 +147,9 @@ export default function UserManagement() {
             message: `Usuario ${user.active ? 'desactivado' : 'activado'} exitosamente`,
             type: 'success'
           });
-          loadUsers();
+          // Invalidar caché y recargar
+          invalidateUsers();
+          loadUsers(true);
         } catch (error) {
           setToast({
             message: 'Error al cambiar estado del usuario',
@@ -141,7 +169,9 @@ export default function UserManagement() {
       message: editingUser ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente',
       type: 'success'
     });
-    loadUsers();
+    // Invalidar caché y recargar
+    invalidateUsers();
+    loadUsers(true);
   };
 
   const handlePasswordChanged = () => {
@@ -152,6 +182,15 @@ export default function UserManagement() {
     setTimeout(() => {
       logout();
     }, 1500);
+  };
+
+  const handleRefresh = () => {
+    invalidateUsers();
+    loadUsers(true);
+    setToast({
+      message: 'Datos actualizados',
+      type: 'info'
+    });
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -190,6 +229,7 @@ export default function UserManagement() {
                   src={business.logo_url} 
                   alt={business.name}
                   className="h-12 w-auto object-contain"
+                  loading="lazy"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
@@ -288,7 +328,7 @@ export default function UserManagement() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={loadUsers}
+                onClick={handleRefresh}
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50"
               >

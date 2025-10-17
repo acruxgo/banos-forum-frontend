@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useCacheStore } from '../store/cacheStore';
 import { productsService } from '../services/api';
 import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -36,7 +37,10 @@ export default function ProductManagement() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [products, setProducts] = useState<Product[]>([]);
+  // Caché
+  const { getProducts, setProducts, invalidateProducts } = useCacheStore();
+
+  const [products, setProductsState] = useState<Product[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     total: 0,
     page: 1,
@@ -73,19 +77,43 @@ export default function ProductManagement() {
     }
   });
 
-  // Cargar productos con filtros
+  // Cargar productos con caché
   const loadProducts = async () => {
     setLoading(true);
     try {
+      // Si no hay filtros activos, intentar usar caché
+      if (!hasActiveFilters() && page === 1 && limit === 10) {
+        const cachedProducts = getProducts();
+        if (cachedProducts) {
+          console.log('✨ Productos cargados desde caché');
+          setProductsState(cachedProducts);
+          setPagination({
+            total: cachedProducts.length,
+            page: 1,
+            limit: 10,
+            totalPages: Math.ceil(cachedProducts.length / 10)
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Si hay filtros o no hay caché, hacer petición
       const params = getQueryParams();
       const response = await productsService.getAll(params);
       
       if (response.data.success) {
-        setProducts(response.data.data);
+        setProductsState(response.data.data);
         setPagination(response.data.pagination);
+        
+        // Guardar en caché solo si no hay filtros
+        if (!hasActiveFilters() && page === 1 && limit === 10) {
+          setProducts(response.data.data);
+          console.log('💾 Productos guardados en caché');
+        }
       }
-    } catch (err) {
-      console.error('Error al cargar productos:', err);
+    } catch (error) {
+      console.error('Error al cargar productos:', error);
       setToast({
         message: 'Error al cargar productos',
         type: 'error'
@@ -113,7 +141,7 @@ export default function ProductManagement() {
   const handleToggleActive = async (product: Product) => {
     setConfirmAction({
       title: product.active ? 'Desactivar Producto' : 'Activar Producto',
-      message: `¿Estás seguro de ${product.active ? 'desactivar' : 'activar'} ${product.name}?`,
+      message: `¿Estás seguro de ${product.active ? 'desactivar' : 'activar'} "${product.name}"?`,
       onConfirm: async () => {
         try {
           await productsService.toggleActive(product.id);
@@ -121,9 +149,9 @@ export default function ProductManagement() {
             message: `Producto ${product.active ? 'desactivado' : 'activado'} exitosamente`,
             type: 'success'
           });
+          invalidateProducts(); // Invalidar caché
           loadProducts();
-        } catch (err) {
-          console.error('Error al cambiar estado:', err);
+        } catch (error) {
           setToast({
             message: 'Error al cambiar estado del producto',
             type: 'error'
@@ -142,6 +170,7 @@ export default function ProductManagement() {
       message: editingProduct ? 'Producto actualizado exitosamente' : 'Producto creado exitosamente',
       type: 'success'
     });
+    invalidateProducts(); // Invalidar caché
     loadProducts();
   };
 
@@ -155,10 +184,20 @@ export default function ProductManagement() {
     }, 1500);
   };
 
+  // Función para refrescar forzando recarga desde servidor
+  const handleRefresh = () => {
+    invalidateProducts();
+    loadProducts();
+    setToast({
+      message: 'Productos actualizados',
+      type: 'info'
+    });
+  };
+
   const getTypeBadgeColor = (type: string) => {
     switch (type) {
       case 'bano': return 'bg-blue-100 text-blue-800';
-      case 'ducha': return 'bg-cyan-100 text-cyan-800';
+      case 'ducha': return 'bg-green-100 text-green-800';
       case 'locker': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -166,9 +205,9 @@ export default function ProductManagement() {
 
   const getTypeLabel = (type: string) => {
     switch (type) {
-      case 'bano': return '🚽 Baño';
-      case 'ducha': return '🚿 Ducha';
-      case 'locker': return '🔐 Locker';
+      case 'bano': return 'Baño';
+      case 'ducha': return 'Ducha';
+      case 'locker': return 'Locker';
       default: return type;
     }
   };
@@ -176,9 +215,9 @@ export default function ProductManagement() {
   // Opciones para los filtros
   const typeOptions = [
     { value: 'all', label: 'Todos los tipos' },
-    { value: 'bano', label: '🚽 Baño' },
-    { value: 'ducha', label: '🚿 Ducha' },
-    { value: 'locker', label: '🔐 Locker' }
+    { value: 'bano', label: 'Baño' },
+    { value: 'ducha', label: 'Ducha' },
+    { value: 'locker', label: 'Locker' }
   ];
 
   const activeOptions = [
@@ -200,6 +239,7 @@ export default function ProductManagement() {
                   src={business.logo_url} 
                   alt={business.name}
                   className="h-12 w-auto object-contain"
+                  loading="lazy"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
@@ -293,12 +333,12 @@ export default function ProductManagement() {
             <div className="flex items-center gap-2">
               <Package style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
               <h2 className="text-lg font-bold text-gray-800">
-                Productos/Servicios ({pagination.total})
+                Productos y Servicios ({pagination.total})
               </h2>
             </div>
             <div className="flex gap-2">
               <button
-                onClick={loadProducts}
+                onClick={handleRefresh}
                 disabled={loading}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition disabled:opacity-50"
               >
@@ -328,7 +368,7 @@ export default function ProductManagement() {
               <SearchBar
                 value={filters.search}
                 onChange={(value) => updateFilter('search', value)}
-                placeholder="Buscar producto por nombre..."
+                placeholder="Buscar por nombre..."
               />
             </div>
 
@@ -374,7 +414,7 @@ export default function ProductManagement() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Producto/Servicio
+                        Nombre
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Tipo
@@ -405,7 +445,9 @@ export default function ProductManagement() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-green-600">${product.price.toFixed(2)}</div>
+                          <div className="text-sm text-gray-900 font-semibold">
+                            ${product.price.toFixed(2)} MXN
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
