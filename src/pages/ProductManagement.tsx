@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCacheStore } from '../store/cacheStore';
+import { usePlanLimits } from '../hooks/usePlanLimits';
 import { productsService } from '../services/api';
-import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3 } from 'lucide-react';
+import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ProductModal from '../components/ProductModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ConfirmModal from '../components/ConfirmModal';
+import UpgradeModal from '../components/UpgradeModal';
 import Toast from '../components/Toast';
 import { SearchBar } from '../components/common/SearchBar';
 import { FilterSelect } from '../components/common/FilterSelect';
@@ -40,6 +42,15 @@ export default function ProductManagement() {
   // Caché
   const { getProducts, setProducts, invalidateProducts } = useCacheStore();
 
+  // Plan limits
+  const { 
+    canAddProducts, 
+    getProductLimitMessage, 
+    getRecommendedUpgrade,
+    currentPlan,
+    planLimits
+  } = usePlanLimits();
+
   const [products, setProductsState] = useState<Product[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     total: 0,
@@ -50,12 +61,13 @@ export default function ProductManagement() {
   const [loading, setLoading] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   // Estados para confirmaciones y toasts
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmAction, setConfirmAction] = useState<any>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
 
   // Hook de filtros y paginación
   const {
@@ -129,6 +141,16 @@ export default function ProductManagement() {
   }, [page, limit, filters.search, filters.type, filters.active]);
 
   const handleCreateProduct = () => {
+    // Verificar si puede agregar más productos
+    if (!canAddProducts(pagination.total)) {
+      setToast({
+        message: getProductLimitMessage(),
+        type: 'warning'
+      });
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setEditingProduct(null);
     setShowProductModal(true);
   };
@@ -211,6 +233,9 @@ export default function ProductManagement() {
       default: return type;
     }
   };
+
+  // Verificar si el botón de crear producto está deshabilitado
+  const isCreateProductDisabled = !canAddProducts(pagination.total);
 
   // Opciones para los filtros
   const typeOptions = [
@@ -332,9 +357,14 @@ export default function ProductManagement() {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Package style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
-              <h2 className="text-lg font-bold text-gray-800">
-                Productos y Servicios ({pagination.total})
-              </h2>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">
+                  Productos y Servicios ({pagination.total})
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Límite de tu plan: {pagination.total} / {planLimits.maxProducts === -1 ? 'Ilimitado' : planLimits.maxProducts}
+                </p>
+              </div>
             </div>
             <div className="flex gap-2">
               <button
@@ -347,10 +377,15 @@ export default function ProductManagement() {
               </button>
               <button
                 onClick={handleCreateProduct}
-                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg transition hover:opacity-90"
-                style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
+                className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg transition ${
+                  isCreateProductDisabled 
+                    ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-500' 
+                    : 'hover:opacity-90'
+                }`}
+                style={!isCreateProductDisabled ? { backgroundColor: business?.primary_color || '#3B82F6' } : {}}
+                title={isCreateProductDisabled ? 'Límite alcanzado - Click para actualizar plan' : 'Crear nuevo producto'}
               >
-                <Plus size={20} />
+                {isCreateProductDisabled ? <Lock size={20} /> : <Plus size={20} />}
                 Nuevo Producto
               </button>
             </div>
@@ -520,6 +555,18 @@ export default function ProductManagement() {
         <ChangePasswordModal
           onClose={() => setShowChangePasswordModal(false)}
           onSuccess={handlePasswordChanged}
+        />
+      )}
+
+      {/* Modal de Upgrade */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          currentPlan={currentPlan}
+          recommendedPlan={getRecommendedUpgrade() || 'premium'}
+          feature="Límite de productos"
+          message={getProductLimitMessage()}
         />
       )}
 

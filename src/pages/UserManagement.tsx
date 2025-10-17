@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCacheStore } from '../store/cacheStore';
+import { usePlanLimits } from '../hooks/usePlanLimits';
 import { usersService } from '../services/api';
-import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3 } from 'lucide-react';
+import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import UserModal from '../components/UserModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ConfirmModal from '../components/ConfirmModal';
+import UpgradeModal from '../components/UpgradeModal';
 import Toast from '../components/Toast';
 import { SearchBar } from '../components/common/SearchBar';
 import { FilterSelect } from '../components/common/FilterSelect';
@@ -40,6 +42,15 @@ export default function UserManagement() {
   // Caché
   const { getUsers, setUsers, invalidateUsers } = useCacheStore();
 
+  // Plan limits
+  const { 
+    canAddUsers, 
+    getUserLimitMessage, 
+    getRecommendedUpgrade,
+    currentPlan,
+    planLimits
+  } = usePlanLimits();
+
   const [users, setLocalUsers] = useState<User[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     total: 0,
@@ -50,12 +61,13 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   // Estados para confirmaciones y toasts
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmAction, setConfirmAction] = useState<any>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
 
   // Hook de filtros y paginación
   const {
@@ -127,6 +139,16 @@ export default function UserManagement() {
   }, [page, limit, filters.search, filters.role, filters.active]);
 
   const handleCreateUser = () => {
+    // Verificar si puede agregar más usuarios
+    if (!canAddUsers(pagination.total)) {
+      setToast({
+        message: getUserLimitMessage(),
+        type: 'warning'
+      });
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setEditingUser(null);
     setShowUserModal(true);
   };
@@ -201,6 +223,9 @@ export default function UserManagement() {
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
+  // Verificar si el botón de crear usuario está deshabilitado
+  const isCreateUserDisabled = !canAddUsers(pagination.total);
 
   // Opciones para los filtros
   const roleOptions = [
@@ -322,9 +347,14 @@ export default function UserManagement() {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <Users style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
-              <h2 className="text-lg font-bold text-gray-800">
-                Usuarios del Sistema ({pagination.total})
-              </h2>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">
+                  Usuarios del Sistema ({pagination.total})
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Límite de tu plan: {planLimits.maxUsers === -1 ? 'Ilimitado' : `${pagination.total} / ${planLimits.maxUsers}`}
+                </p>
+              </div>
             </div>
             <div className="flex gap-2">
               <button
@@ -337,10 +367,15 @@ export default function UserManagement() {
               </button>
               <button
                 onClick={handleCreateUser}
-                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg transition hover:opacity-90"
-                style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
+                className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg transition ${
+                  isCreateUserDisabled 
+                    ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-500' 
+                    : 'hover:opacity-90'
+                }`}
+                style={!isCreateUserDisabled ? { backgroundColor: business?.primary_color || '#3B82F6' } : {}}
+                title={isCreateUserDisabled ? 'Límite alcanzado - Click para actualizar plan' : 'Crear nuevo usuario'}
               >
-                <Plus size={20} />
+                {isCreateUserDisabled ? <Lock size={20} /> : <Plus size={20} />}
                 Nuevo Usuario
               </button>
             </div>
@@ -508,6 +543,18 @@ export default function UserManagement() {
         <ChangePasswordModal
           onClose={() => setShowChangePasswordModal(false)}
           onSuccess={handlePasswordChanged}
+        />
+      )}
+
+      {/* Modal de Upgrade */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          currentPlan={currentPlan}
+          recommendedPlan={getRecommendedUpgrade() || 'premium'}
+          feature="Límite de usuarios"
+          message={getUserLimitMessage()}
         />
       )}
 

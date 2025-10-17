@@ -8,6 +8,7 @@ interface Business {
   slug: string;
   logo_url: string | null;
   primary_color: string;
+  plan: 'basic' | 'premium' | 'enterprise';
 }
 
 interface AuthState {

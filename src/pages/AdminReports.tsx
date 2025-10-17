@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
+import { usePlanLimits } from '../hooks/usePlanLimits';
 import { transactionsService, usersService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { LogOut, TrendingUp, Users as UsersIcon, Package, Key, BarChart3, TrendingDown, Award } from 'lucide-react';
+import { LogOut, TrendingUp, Users as UsersIcon, Package, Key, BarChart3, TrendingDown, Award, Lock, Crown } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import UpgradeModal from '../components/UpgradeModal';
 import { SearchBar } from '../components/common/SearchBar';
 import { FilterSelect } from '../components/common/FilterSelect';
 import { DateRangeFilter } from '../components/common/DateRangeFilter';
@@ -40,6 +42,13 @@ export default function AdminReports() {
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Plan limits
+  const { 
+    hasFeature,
+    getRecommendedUpgrade,
+    currentPlan
+  } = usePlanLimits();
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]); // Para estadísticas
@@ -52,6 +61,8 @@ export default function AdminReports() {
   });
   const [loading, setLoading] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState('');
   
   // Estados para comparativas
   const [previousMonthSales, setPreviousMonthSales] = useState(0);
@@ -79,6 +90,12 @@ export default function AdminReports() {
       employee: 'all' // Nuevo filtro por empleado
     }
   });
+
+  // Handler para features bloqueadas
+  const handleBlockedFeature = (featureName: string) => {
+    setUpgradeFeature(featureName);
+    setShowUpgradeModal(true);
+  };
 
   // Cargar usuarios (empleados)
   const loadUsers = async () => {
@@ -295,6 +312,11 @@ export default function AdminReports() {
     ...users.map(u => ({ value: u.id, label: `👤 ${u.name}` }))
   ];
 
+  // Verificar qué features están disponibles
+  const canViewAdvancedReports = hasFeature('advancedReports');
+  const canViewEmployeeRanking = hasFeature('employeeRanking');
+  const canFilterByEmployee = hasFeature('employeeFilter');
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header con branding */}
@@ -410,12 +432,37 @@ export default function AdminReports() {
                 />
               </div>
 
-              <FilterSelect
-                label="Empleado"
-                value={filters.employee}
-                onChange={(value) => updateFilter('employee', value)}
-                options={employeeOptions}
-              />
+              {/* Filtro por empleado - Bloqueado si no tiene acceso */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  <span>Empleado</span>
+                  {!canFilterByEmployee && <Lock size={14} className="text-gray-400" />}
+                </label>
+                <select
+                  value={canFilterByEmployee ? filters.employee : 'all'}
+                  onChange={(e) => {
+                    if (!canFilterByEmployee) {
+                      handleBlockedFeature('Filtro por empleado');
+                    } else {
+                      updateFilter('employee', e.target.value);
+                    }
+                  }}
+                  disabled={!canFilterByEmployee}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition ${
+                    !canFilterByEmployee ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
+                  }`}
+                >
+                  {employeeOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                {!canFilterByEmployee && (
+                  <div 
+                    className="absolute inset-0 bg-transparent cursor-pointer"
+                    onClick={() => handleBlockedFeature('Filtro por empleado')}
+                  />
+                )}
+              </div>
 
               <FilterSelect
                 label="Método de Pago"
@@ -460,18 +507,20 @@ export default function AdminReports() {
                 <p className="text-3xl font-bold text-gray-800">
                   ${totalSales.toFixed(2)}
                 </p>
-                {/* Comparativa */}
-                <div className="flex items-center gap-1 mt-2">
-                  {salesGrowth >= 0 ? (
-                    <TrendingUp size={16} className="text-green-600" />
-                  ) : (
-                    <TrendingDown size={16} className="text-red-600" />
-                  )}
-                  <span className={`text-sm font-semibold ${salesGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {salesGrowth >= 0 ? '+' : ''}{salesGrowth.toFixed(1)}%
-                  </span>
-                  <span className="text-xs text-gray-500">vs mes anterior</span>
-                </div>
+                {/* Comparativa - Solo en planes con advancedReports */}
+                {canViewAdvancedReports && (
+                  <div className="flex items-center gap-1 mt-2">
+                    {salesGrowth >= 0 ? (
+                      <TrendingUp size={16} className="text-green-600" />
+                    ) : (
+                      <TrendingDown size={16} className="text-red-600" />
+                    )}
+                    <span className={`text-sm font-semibold ${salesGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {salesGrowth >= 0 ? '+' : ''}{salesGrowth.toFixed(1)}%
+                    </span>
+                    <span className="text-xs text-gray-500">vs mes anterior</span>
+                  </div>
+                )}
               </div>
               <div className="p-3 rounded-full" style={{ backgroundColor: `${business?.primary_color}20` || '#10B98120' }}>
                 <TrendingUp style={{ color: business?.primary_color || '#10B981' }} size={32} />
@@ -520,43 +569,67 @@ export default function AdminReports() {
           </div>
         </div>
 
-        {/* Ranking de Empleados */}
-        {employeeStats.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Award style={{ color: business?.primary_color || '#F59E0B' }} size={24} />
-              Rendimiento por Empleado
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {employeeStats.slice(0, 5).map((emp, index) => (
-                <div 
-                  key={index}
-                  className={`p-4 rounded-lg border-2 ${
-                    index === 0 ? 'border-yellow-400 bg-yellow-50' :
-                    index === 1 ? 'border-gray-400 bg-gray-50' :
-                    index === 2 ? 'border-orange-400 bg-orange-50' :
-                    'border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    {index === 0 && <span className="text-2xl">🥇</span>}
-                    {index === 1 && <span className="text-2xl">🥈</span>}
-                    {index === 2 && <span className="text-2xl">🥉</span>}
-                    <p className="font-semibold text-gray-800">{emp.name}</p>
+        {/* Ranking de Empleados - Solo en plan Enterprise */}
+        {canViewEmployeeRanking ? (
+          employeeStats.length > 0 && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <Award style={{ color: business?.primary_color || '#F59E0B' }} size={24} />
+                Rendimiento por Empleado
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {employeeStats.slice(0, 5).map((emp, index) => (
+                  <div 
+                    key={index}
+                    className={`p-4 rounded-lg border-2 ${
+                      index === 0 ? 'border-yellow-400 bg-yellow-50' :
+                      index === 1 ? 'border-gray-400 bg-gray-50' :
+                      index === 2 ? 'border-orange-400 bg-orange-50' :
+                      'border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      {index === 0 && <span className="text-2xl">🥇</span>}
+                      {index === 1 && <span className="text-2xl">🥈</span>}
+                      {index === 2 && <span className="text-2xl">🥉</span>}
+                      <p className="font-semibold text-gray-800">{emp.name}</p>
+                    </div>
+                    <div className="space-y-1 text-sm">
+                      <p className="text-gray-600">
+                        Ventas: <span className="font-bold text-gray-800">${emp.sales.toFixed(2)}</span>
+                      </p>
+                      <p className="text-gray-600">
+                        Transacciones: <span className="font-bold text-gray-800">{emp.transactions}</span>
+                      </p>
+                      <p className="text-gray-600">
+                        Ticket Prom: <span className="font-bold text-gray-800">${emp.averageTicket.toFixed(2)}</span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-1 text-sm">
-                    <p className="text-gray-600">
-                      Ventas: <span className="font-bold text-gray-800">${emp.sales.toFixed(2)}</span>
-                    </p>
-                    <p className="text-gray-600">
-                      Transacciones: <span className="font-bold text-gray-800">{emp.transactions}</span>
-                    </p>
-                    <p className="text-gray-600">
-                      Ticket Prom: <span className="font-bold text-gray-800">${emp.averageTicket.toFixed(2)}</span>
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+          )
+        ) : (
+          <div 
+            className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-md p-8 border-2 border-dashed border-gray-300 cursor-pointer hover:border-blue-400 transition"
+            onClick={() => handleBlockedFeature('Ranking de empleados')}
+          >
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-200 mb-4">
+                <Lock className="text-gray-500" size={32} />
+              </div>
+              <h3 className="text-lg font-bold text-gray-800 mb-2 flex items-center justify-center gap-2">
+                <Award className="text-gray-400" size={24} />
+                Ranking de Empleados
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Esta función requiere el plan Enterprise
+              </p>
+              <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:opacity-90 transition">
+                <Crown size={20} />
+                Actualizar Plan
+              </button>
             </div>
           </div>
         )}
@@ -623,29 +696,52 @@ export default function AdminReports() {
             </ResponsiveContainer>
           </div>
 
-          {/* Comparativa Mes Actual vs Anterior */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Comparativa Mensual</h2>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={[
-                { name: 'Mes Anterior', ventas: previousMonthSales },
-                { name: 'Mes Actual', ventas: allTransactions.filter(t => {
-                  const date = new Date(t.created_at);
-                  const now = new Date();
-                  return date.getMonth() === now.getMonth() && 
-                         date.getFullYear() === now.getFullYear() &&
-                         t.status === 'completed';
-                }).reduce((sum, t) => sum + Number(t.total), 0) }
-              ]}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="ventas" fill={business?.primary_color || '#3B82F6'} name="Ventas ($)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {/* Comparativa Mes Actual vs Anterior - Solo con advancedReports */}
+          {canViewAdvancedReports ? (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Comparativa Mensual</h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={[
+                  { name: 'Mes Anterior', ventas: previousMonthSales },
+                  { name: 'Mes Actual', ventas: allTransactions.filter(t => {
+                    const date = new Date(t.created_at);
+                    const now = new Date();
+                    return date.getMonth() === now.getMonth() && 
+                           date.getFullYear() === now.getFullYear() &&
+                           t.status === 'completed';
+                  }).reduce((sum, t) => sum + Number(t.total), 0) }
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="ventas" fill={business?.primary_color || '#3B82F6'} name="Ventas ($)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div 
+              className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-md p-8 border-2 border-dashed border-gray-300 cursor-pointer hover:border-blue-400 transition"
+              onClick={() => handleBlockedFeature('Comparativas mensuales')}
+            >
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-200 mb-4">
+                  <Lock className="text-gray-500" size={32} />
+                </div>
+                <h3 className="text-lg font-bold text-gray-800 mb-2">
+                  Comparativa Mensual
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Esta función requiere el plan Premium o superior
+                </p>
+                <button className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:opacity-90 transition">
+                  <Crown size={20} />
+                  Actualizar Plan
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tabla Detallada */}
@@ -738,6 +834,18 @@ export default function AdminReports() {
         <ChangePasswordModal
           onClose={() => setShowChangePasswordModal(false)}
           onSuccess={handlePasswordChanged}
+        />
+      )}
+
+      {/* Modal de Upgrade */}
+      {showUpgradeModal && (
+        <UpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          currentPlan={currentPlan}
+          recommendedPlan={getRecommendedUpgrade() || 'premium'}
+          feature={upgradeFeature}
+          message={`La función "${upgradeFeature}" requiere un plan superior.`}
         />
       )}
     </div>
