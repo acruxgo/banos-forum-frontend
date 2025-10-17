@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import type { Product, Shift } from '../types';
 import { useAuthStore } from '../store/authStore';
-import { productsService, shiftsService, transactionsService } from '../services/api';
+import { productsService, shiftsService, transactionsService, ticketsService } from '../services/api';
 import { ShoppingCart, LogOut, DollarSign, Key, BarChart3 } from 'lucide-react';
 import CloseShiftModal from '../components/CloseShiftModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import StartShiftModal from '../components/StartShiftModal';
 import ConfirmModal from '../components/ConfirmModal';
+import TicketModal from '../components/TicketModal';
 import Toast from '../components/Toast';
 
 export default function CajaPOS() {
@@ -22,6 +23,10 @@ export default function CajaPOS() {
   const [showStartShiftModal, setShowStartShiftModal] = useState(false);
   const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+
+  // Estados para ticket
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [currentTicket, setCurrentTicket] = useState<any>(null);
 
   // Estados para confirmaciones y toasts
   const [showConfirm, setShowConfirm] = useState(false);
@@ -125,16 +130,44 @@ export default function CajaPOS() {
       onConfirm: async () => {
         setLoading(true);
         try {
-          for (const item of cart) {
-            await transactionsService.create({
+          // 1. Registrar transacciones
+          const transactionPromises = cart.map((item) =>
+            transactionsService.create({
               shift_id: currentShift.id,
               product_id: item.product.id,
               quantity: item.quantity,
               unit_price: item.product.price,
               payment_method: paymentMethod,
               created_by: user?.id,
-            });
-          }
+            })
+          );
+          
+          await Promise.all(transactionPromises);
+
+          // 2. Generar ticket
+          const ticketItems = cart.map((item) => ({
+            name: item.product.name,
+            quantity: item.quantity,
+            price: item.product.price,
+            total: item.product.price * item.quantity
+          }));
+
+          const subtotal = calculateTotal();
+          const total = subtotal;
+
+          const ticketResponse = await ticketsService.create({
+            items: ticketItems,
+            subtotal,
+            total,
+            payment_method: paymentMethod
+          });
+
+          // 3. Mostrar ticket
+          setCurrentTicket({
+            ...ticketResponse.data.data,
+            items: ticketItems
+          });
+          setShowTicketModal(true);
           
           setToast({
             message: '✅ Venta registrada exitosamente',
@@ -186,6 +219,19 @@ export default function CajaPOS() {
     setTimeout(() => {
       logout();
     }, 1500);
+  };
+
+  const handlePrintTicket = async () => {
+    if (currentTicket?.id) {
+      await ticketsService.markPrinted(currentTicket.id);
+    }
+    window.print();
+  };
+
+  const handleWhatsAppTicket = async () => {
+    if (currentTicket?.id) {
+      await ticketsService.markSent(currentTicket.id);
+    }
   };
 
   if (!currentShift) {
@@ -384,9 +430,9 @@ export default function CajaPOS() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 outline-none"
                       style={{ borderColor: business?.primary_color || '#3B82F6' }}
                     >
-                      <option value="card">Tarjeta</option>
-                      <option value="transfer">Transferencia</option>
-                      <option value="cash">Efectivo</option>
+                      <option value="card">💳 Tarjeta</option>
+                      <option value="transfer">🏦 Transferencia</option>
+                      <option value="cash">💵 Efectivo</option>
                     </select>
                   </div>
 
@@ -404,6 +450,16 @@ export default function CajaPOS() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Ticket */}
+      {showTicketModal && currentTicket && (
+        <TicketModal
+          ticket={currentTicket}
+          onClose={() => setShowTicketModal(false)}
+          onPrint={handlePrintTicket}
+          onWhatsApp={handleWhatsAppTicket}
+        />
+      )}
 
       {/* Modal de Cierre de Turno */}
       {showCloseShiftModal && (

@@ -116,3 +116,27 @@ export const transactionsService = {
   create: (transaction: any) => api.post('/transactions', transaction),
   getStatsToday: () => api.get('/transactions/stats/today'),
 };
+
+// Servicios de tickets
+export const ticketsService = {
+  getAll: (params?: Record<string, any>) => api.get('/tickets', { params }),
+  getById: (id: string) => api.get(`/tickets/${id}`),
+  create: (ticketData: {
+    transaction_id?: string;
+    customer_name?: string;
+    customer_phone?: string;
+    items: Array<{
+      name: string;
+      quantity: number;
+      price: number;
+      total: number;
+    }>;
+    subtotal: number;
+    discount?: number;
+    total: number;
+    payment_method: string;
+    notes?: string;
+  }) => api.post('/tickets', ticketData),
+  markPrinted: (id: string) => api.patch(`/tickets/${id}/mark-printed`),
+  markSent: (id: string) => api.patch(`/tickets/${id}/mark-sent`),
+};
