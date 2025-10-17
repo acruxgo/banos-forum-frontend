@@ -33,8 +33,8 @@ export default function Login() {
     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Baños Forum</h1>
-          <p className="text-gray-600 mt-2">Sistema POS</p>
+          <h1 className="text-3xl font-bold text-gray-800">Acrux POS</h1>
+          <p className="text-gray-600 mt-2">Gestión profesional de ventas</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -48,7 +48,7 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              placeholder="usuario@banosforum.com"
+              placeholder="usuario@correo.com"
               required
             />
           </div>
@@ -82,12 +82,6 @@ export default function Login() {
             {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </button>
         </form>
-
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-xs text-gray-500 text-center">
-            Contraseña de prueba: password123
-          </p>
-        </div>
       </div>
     </div>
   );
