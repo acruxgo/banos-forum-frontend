@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { transactionsService, usersService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { LogOut, TrendingUp, Users as UsersIcon, Package, Key, BarChart3, TrendingDown, Award, Lock, Crown } from 'lucide-react';
+import { LogOut, TrendingUp, Users as UsersIcon, Package, Key, BarChart3, TrendingDown, Award, Lock, Crown, FileDown } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import UpgradeModal from '../components/UpgradeModal';
 import { SearchBar } from '../components/common/SearchBar';
@@ -14,6 +14,7 @@ import { DateRangeFilter } from '../components/common/DateRangeFilter';
 import { FilterActions } from '../components/common/FilterActions';
 import { Pagination } from '../components/common/Pagination';
 import { useTableFilters } from '../hooks/useTableFilters';
+import { generatePDF, formatDate } from '../utils/pdfExport';
 
 interface PaginationMeta {
   total: number;
@@ -196,6 +197,76 @@ export default function AdminReports() {
   const handlePasswordChanged = () => {
     alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
     logout();
+  };
+
+  // Exportar reporte a PDF
+  const handleExportPDF = () => {
+    if (!hasFeature('advancedReports')) {
+      handleBlockedFeature('Exportación de reportes a PDF');
+      return;
+    }
+
+    // Calcular totales
+    const totalSales = transactions.reduce((sum, t) => sum + Number(t.total), 0);
+    const totalTransactions = transactions.length;
+    const averageTicket = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+
+    // Preparar datos para la tabla
+    const headers = ['Fecha', 'Empleado', 'Producto', 'Cantidad', 'Precio Unit.', 'Total', 'Método Pago', 'Estado'];
+    
+    const rows = transactions.map(t => [
+      new Date(t.created_at).toLocaleDateString('es-MX', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
+      users.find(u => u.id === t.created_by)?.name || 'N/A',
+      t.products?.name || 'N/A',
+      t.quantity.toString(),
+      `$${Number(t.unit_price).toFixed(2)}`,
+      `$${Number(t.total).toFixed(2)}`,
+      t.payment_method === 'card' ? 'Tarjeta' : t.payment_method === 'cash' ? 'Efectivo' : 'Transferencia',
+      t.status === 'completed' ? 'Completado' : t.status === 'pending' ? 'Pendiente' : 'Fallido'
+    ]);
+
+    // Preparar resumen
+    const summary = [
+      { label: 'Total de Transacciones', value: totalTransactions.toString() },
+      { label: 'Total de Ventas', value: `$${totalSales.toFixed(2)} MXN` },
+      { label: 'Ticket Promedio', value: `$${averageTicket.toFixed(2)} MXN` }
+    ];
+
+    // Agregar filtros aplicados al subtítulo
+    let subtitle = 'Reporte de Ventas';
+    const appliedFilters = [];
+    
+    if (filters.date_from) appliedFilters.push(`Desde: ${filters.date_from}`);
+    if (filters.date_to) appliedFilters.push(`Hasta: ${filters.date_to}`);
+    if (filters.payment_method !== 'all') appliedFilters.push(`Método: ${filters.payment_method}`);
+    if (filters.employee !== 'all') {
+      const emp = users.find(u => u.id === filters.employee);
+      if (emp) appliedFilters.push(`Empleado: ${emp.name}`);
+    }
+    
+    if (appliedFilters.length > 0) {
+      subtitle += ' - ' + appliedFilters.join(' | ');
+    }
+
+    // Generar PDF
+    generatePDF({
+      title: 'Reporte de Ventas',
+      subtitle,
+      business: {
+        name: business?.name || 'Sistema POS',
+        logo_url: business?.logo_url || undefined
+      },
+      date: formatDate(new Date()),
+      headers,
+      rows,
+      summary
+    });
   };
 
   // Calcular estadísticas por empleado
@@ -503,13 +574,29 @@ export default function AdminReports() {
             />
 
             {/* Acciones */}
-            <div className="flex justify-between items-center">
+<div className="flex justify-between items-center">
               <FilterActions
                 onClearFilters={clearFilters}
                 onExport={exportToCSV}
                 hasActiveFilters={hasActiveFilters()}
               />
-            </div>
+              
+              {/* Botón Exportar PDF */}
+              <button
+                onClick={handleExportPDF}
+                disabled={transactions.length === 0}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                  hasFeature('advancedReports')
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                } ${transactions.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={!hasFeature('advancedReports') ? 'Requiere plan Premium o superior' : 'Exportar reporte a PDF'}
+              >
+                {!hasFeature('advancedReports') && <Lock size={18} />}
+                <FileDown size={18} />
+                Exportar PDF
+              </button>
+              </div>
           </div>
         </div>
 
