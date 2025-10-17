@@ -17,6 +17,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkingName, setCheckingName] = useState(false);
 
   // Estados de validación en tiempo real
   const [validationErrors, setValidationErrors] = useState({
@@ -38,6 +39,36 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       });
     }
   }, [product]);
+
+  // Verificar nombre duplicado
+  const checkNameDuplicate = async (name: string) => {
+    if (!name || (product && product.name === name)) return;
+
+    const validation = validateProductName(name);
+    if (!validation.valid) return;
+
+    setCheckingName(true);
+    try {
+      const response = await productsService.getAll({ search: name });
+      if (response.data.success && response.data.data.length > 0) {
+        // Si encontró productos con ese nombre
+        const existingProduct = response.data.data.find((p: any) => 
+          p.name.toLowerCase() === name.trim().toLowerCase() && p.id !== product?.id
+        );
+        
+        if (existingProduct) {
+          setValidationErrors(prev => ({ 
+            ...prev, 
+            name: 'Ya existe un producto con este nombre' 
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error al verificar nombre:', err);
+    } finally {
+      setCheckingName(false);
+    }
+  };
 
   // Validación en tiempo real - Nombre
   const handleNameChange = (value: string) => {
@@ -75,6 +106,10 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
         ...prev, 
         name: validation.valid ? '' : validation.error || '' 
       }));
+      // Verificar duplicado
+      if (validation.valid) {
+        checkNameDuplicate(formData.name);
+      }
     } else if (field === 'price') {
       const validation = validatePrice(formData.price);
       setValidationErrors(prev => ({ 
@@ -126,7 +161,13 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al guardar producto');
+      const errorMsg = err.response?.data?.message || 'Error al guardar producto';
+      // Detectar error de duplicado del backend
+      if (errorMsg.toLowerCase().includes('nombre') && errorMsg.toLowerCase().includes('existe')) {
+        setValidationErrors(prev => ({ ...prev, name: 'Ya existe un producto con este nombre' }));
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -134,7 +175,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
 
   // Verificar si hay errores de validación
   const hasValidationErrors = Object.values(validationErrors).some(err => err !== '');
-  const isFormValid = formData.name && formData.price && !hasValidationErrors;
+  const isFormValid = formData.name && formData.price && !hasValidationErrors && !checkingName;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -173,7 +214,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
                 className={`w-full px-4 py-3 pr-10 border rounded-lg outline-none transition ${
                   touched.name && validationErrors.name
                     ? 'border-red-500 focus:ring-2 focus:ring-red-500'
-                    : touched.name && !validationErrors.name && formData.name
+                    : touched.name && !validationErrors.name && formData.name && !checkingName
                     ? 'border-green-500 focus:ring-2 focus:ring-green-500'
                     : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                 }`}
@@ -182,7 +223,9 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
               />
               {touched.name && formData.name && (
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  {validationErrors.name ? (
+                  {checkingName ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  ) : validationErrors.name ? (
                     <AlertCircle className="h-5 w-5 text-red-500" />
                   ) : (
                     <Check className="h-5 w-5 text-green-500" />
@@ -193,8 +236,11 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
             {touched.name && validationErrors.name && (
               <p className="text-xs text-red-600 mt-1">{validationErrors.name}</p>
             )}
-            {touched.name && !validationErrors.name && formData.name && (
-              <p className="text-xs text-green-600 mt-1">✓ Nombre válido</p>
+            {touched.name && !validationErrors.name && formData.name && !checkingName && (
+              <p className="text-xs text-green-600 mt-1">✓ Nombre válido y disponible</p>
+            )}
+            {checkingName && (
+              <p className="text-xs text-blue-600 mt-1">Verificando disponibilidad...</p>
             )}
             <p className="text-xs text-gray-500 mt-1">
               Entre 3 y 50 caracteres

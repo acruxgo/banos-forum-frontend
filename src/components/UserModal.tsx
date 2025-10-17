@@ -19,6 +19,7 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [checkingEmail, setCheckingEmail] = useState(false);
   
   // Estados de validación en tiempo real
   const [validationErrors, setValidationErrors] = useState({
@@ -57,6 +58,7 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
     }
   };
 
+  // Validación de email con verificación de duplicados
   const handleEmailChange = (value: string) => {
     setFormData({ ...formData, email: value });
     
@@ -66,6 +68,36 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
         ...prev, 
         email: validation.valid ? '' : validation.error || '' 
       }));
+    }
+  };
+
+  // Verificar email duplicado al perder foco (solo si no estamos editando o el email cambió)
+  const checkEmailDuplicate = async (email: string) => {
+    if (!email || (user && user.email === email)) return;
+
+    const validation = validateEmail(email);
+    if (!validation.valid) return;
+
+    setCheckingEmail(true);
+    try {
+      const response = await usersService.getAll({ search: email });
+      if (response.data.success && response.data.data.length > 0) {
+        // Si encontró usuarios con ese email
+        const existingUser = response.data.data.find((u: any) => 
+          u.email.toLowerCase() === email.toLowerCase() && u.id !== user?.id
+        );
+        
+        if (existingUser) {
+          setValidationErrors(prev => ({ 
+            ...prev, 
+            email: 'Este email ya está registrado' 
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Error al verificar email:', err);
+    } finally {
+      setCheckingEmail(false);
     }
   };
 
@@ -97,6 +129,10 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
         ...prev, 
         email: validation.valid ? '' : validation.error || '' 
       }));
+      // Verificar duplicado
+      if (validation.valid) {
+        checkEmailDuplicate(formData.email);
+      }
     } else if (field === 'password') {
       const validation = validatePassword(formData.password, !user);
       setValidationErrors(prev => ({ 
@@ -163,7 +199,13 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
       
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al guardar usuario');
+      const errorMsg = err.response?.data?.message || 'Error al guardar usuario';
+      // Detectar error de duplicado del backend
+      if (errorMsg.toLowerCase().includes('email') && errorMsg.toLowerCase().includes('existe')) {
+        setValidationErrors(prev => ({ ...prev, email: 'Este email ya está registrado' }));
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -171,7 +213,7 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
 
   // Verificar si hay errores de validación
   const hasValidationErrors = Object.values(validationErrors).some(err => err !== '');
-  const isFormValid = formData.name && formData.email && (user || formData.password) && !hasValidationErrors;
+  const isFormValid = formData.name && formData.email && (user || formData.password) && !hasValidationErrors && !checkingEmail;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -252,7 +294,7 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
                 className={`w-full px-4 py-3 pr-10 border rounded-lg outline-none transition ${
                   touched.email && validationErrors.email
                     ? 'border-red-500 focus:ring-2 focus:ring-red-500'
-                    : touched.email && !validationErrors.email && formData.email
+                    : touched.email && !validationErrors.email && formData.email && !checkingEmail
                     ? 'border-green-500 focus:ring-2 focus:ring-green-500'
                     : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                 }`}
@@ -261,7 +303,9 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
               />
               {touched.email && formData.email && (
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  {validationErrors.email ? (
+                  {checkingEmail ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  ) : validationErrors.email ? (
                     <AlertCircle className="h-5 w-5 text-red-500" />
                   ) : (
                     <Check className="h-5 w-5 text-green-500" />
@@ -272,8 +316,11 @@ export default function UserModal({ user, onClose, onSuccess }: UserModalProps) 
             {touched.email && validationErrors.email && (
               <p className="text-xs text-red-600 mt-1">{validationErrors.email}</p>
             )}
-            {touched.email && !validationErrors.email && formData.email && (
-              <p className="text-xs text-green-600 mt-1">✓ Email válido</p>
+            {touched.email && !validationErrors.email && formData.email && !checkingEmail && (
+              <p className="text-xs text-green-600 mt-1">✓ Email válido y disponible</p>
+            )}
+            {checkingEmail && (
+              <p className="text-xs text-blue-600 mt-1">Verificando disponibilidad...</p>
             )}
           </div>
 
