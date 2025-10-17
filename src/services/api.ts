@@ -45,18 +45,30 @@ export const authService = {
     api.post('/auth/change-password', { currentPassword, newPassword }),
 };
 
-// Servicios de productos - ACTUALIZADO
+// Servicios de categorías
+export const categoriesService = {
+  getAll: (params?: Record<string, any>) => api.get('/categories', { params }),
+  getById: (id: string) => api.get(`/categories/${id}`),
+  create: (categoryData: { name: string; description?: string }) =>
+    api.post('/categories', categoryData),
+  update: (id: string, categoryData: { name: string; description?: string }) =>
+    api.put(`/categories/${id}`, categoryData),
+  toggleActive: (id: string) => api.patch(`/categories/${id}/toggle-active`),
+  delete: (id: string) => api.delete(`/categories/${id}`),
+};
+
+// Servicios de productos
 export const productsService = {
   getAll: (params?: Record<string, any>) => api.get('/products', { params }),
   getById: (id: string) => api.get(`/products/${id}`),
-  create: (productData: { name: string; price: number; type: string }) =>
+  create: (productData: { name: string; price: number; type: string; category_id: string }) =>
     api.post('/products', productData),
-  update: (id: string, productData: { name: string; price: number; type: string }) =>
+  update: (id: string, productData: { name: string; price: number; type: string; category_id: string }) =>
     api.put(`/products/${id}`, productData),
   toggleActive: (id: string) => api.patch(`/products/${id}/toggle-active`),
 };
 
-// Servicios de empresas (solo super admin) - ACTUALIZADO
+// Servicios de empresas (solo super admin)
 export const businessesService = {
   getAll: (params?: Record<string, any>) => api.get('/businesses', { params }),
   getById: (id: string) => api.get(`/businesses/${id}`),
@@ -76,7 +88,7 @@ export const businessesService = {
   toggleActive: (id: string) => api.patch(`/businesses/${id}/toggle-active`),
 };
 
-// Servicios de usuarios - ACTUALIZADO
+// Servicios de usuarios
 export const usersService = {
   getAll: (params?: Record<string, any>) => api.get('/users', { params }),
   getById: (id: string) => api.get(`/users/${id}`),
@@ -97,7 +109,7 @@ export const shiftsService = {
     api.put(`/shifts/${shiftId}/close`, { final_cash: finalCash }),
 };
 
-// Servicios de transacciones - ACTUALIZADO
+// Servicios de transacciones
 export const transactionsService = {
   getAll: (params?: Record<string, any>) => api.get('/transactions', { params }),
   getByShift: (shiftId: string) => api.get(`/transactions/shift/${shiftId}`),

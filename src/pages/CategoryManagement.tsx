@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useCacheStore } from '../store/cacheStore';
-import { usePlanLimits } from '../hooks/usePlanLimits';
-import { productsService } from '../services/api';
-import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock } from 'lucide-react';
+import { categoriesService } from '../services/api';
+import { FolderOpen, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Trash2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import ProductModal from '../components/ProductModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import CategoryModal from '../components/CategoryModal';
 import ConfirmModal from '../components/ConfirmModal';
-import UpgradeModal from '../components/UpgradeModal';
 import Toast from '../components/Toast';
 import { SearchBar } from '../components/common/SearchBar';
 import { FilterSelect } from '../components/common/FilterSelect';
@@ -16,11 +13,11 @@ import { FilterActions } from '../components/common/FilterActions';
 import { Pagination } from '../components/common/Pagination';
 import { useTableFilters } from '../hooks/useTableFilters';
 
-interface Product {
+
+interface Category {
   id: string;
   name: string;
-  price: number;
-  type: 'bano' | 'ducha' | 'locker';
+  description: string | null;
   active: boolean;
   created_at: string;
 }
@@ -32,26 +29,14 @@ interface PaginationMeta {
   totalPages: number;
 }
 
-export default function ProductManagement() {
+export default function CategoryManagement() {
   const currentUser = useAuthStore((state) => state.user);
   const business = useAuthStore((state) => state.business);
   const logout = useAuthStore((state) => state.logout);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Caché
-  const { getProducts, setProducts, invalidateProducts } = useCacheStore();
-
-  // Plan limits
-  const { 
-    canAddProducts, 
-    getProductLimitMessage, 
-    getRecommendedUpgrade,
-    currentPlan,
-    planLimits
-  } = usePlanLimits();
-
-  const [products, setProductsState] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     total: 0,
     page: 1,
@@ -59,10 +44,9 @@ export default function ProductManagement() {
     totalPages: 0
   });
   const [loading, setLoading] = useState(false);
-  const [showProductModal, setShowProductModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   // Estados para confirmaciones y toasts
   const [showConfirm, setShowConfirm] = useState(false);
@@ -84,50 +68,25 @@ export default function ProductManagement() {
     initialLimit: 10,
     initialFilters: {
       search: '',
-      type: 'all',
       active: 'all'
     }
   });
 
-  // Cargar productos con caché
-  const loadProducts = async () => {
+  // Cargar categorías con filtros
+  const loadCategories = async () => {
     setLoading(true);
     try {
-      // Si no hay filtros activos, intentar usar caché
-      if (!hasActiveFilters() && page === 1 && limit === 10) {
-        const cachedProducts = getProducts();
-        if (cachedProducts) {
-          console.log('✨ Productos cargados desde caché');
-          setProductsState(cachedProducts);
-          setPagination({
-            total: cachedProducts.length,
-            page: 1,
-            limit: 10,
-            totalPages: Math.ceil(cachedProducts.length / 10)
-          });
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Si hay filtros o no hay caché, hacer petición
       const params = getQueryParams();
-      const response = await productsService.getAll(params);
+      const response = await categoriesService.getAll(params);
       
       if (response.data.success) {
-        setProductsState(response.data.data);
+        setCategories(response.data.data);
         setPagination(response.data.pagination);
-        
-        // Guardar en caché solo si no hay filtros
-        if (!hasActiveFilters() && page === 1 && limit === 10) {
-          setProducts(response.data.data);
-          console.log('💾 Productos guardados en caché');
-        }
       }
     } catch (error) {
-      console.error('Error al cargar productos:', error);
+      console.error('Error al cargar categorías:', error);
       setToast({
-        message: 'Error al cargar productos',
+        message: 'Error al cargar categorías',
         type: 'error'
       });
     } finally {
@@ -137,45 +96,34 @@ export default function ProductManagement() {
 
   // Recargar cuando cambien los filtros o la página
   useEffect(() => {
-    loadProducts();
-  }, [page, limit, filters.search, filters.type, filters.active]);
+    loadCategories();
+  }, [page, limit, filters.search, filters.active]);
 
-  const handleCreateProduct = () => {
-    // Verificar si puede agregar más productos
-    if (!canAddProducts(pagination.total)) {
-      setToast({
-        message: getProductLimitMessage(),
-        type: 'warning'
-      });
-      setShowUpgradeModal(true);
-      return;
-    }
-
-    setEditingProduct(null);
-    setShowProductModal(true);
+  const handleCreateCategory = () => {
+    setEditingCategory(null);
+    setShowCategoryModal(true);
   };
 
-  const handleEditProduct = (product: Product) => {
-    setEditingProduct(product);
-    setShowProductModal(true);
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setShowCategoryModal(true);
   };
 
-  const handleToggleActive = async (product: Product) => {
+  const handleToggleActive = async (category: Category) => {
     setConfirmAction({
-      title: product.active ? 'Desactivar Producto' : 'Activar Producto',
-      message: `¿Estás seguro de ${product.active ? 'desactivar' : 'activar'} "${product.name}"?`,
+      title: category.active ? 'Desactivar Categoría' : 'Activar Categoría',
+      message: `¿Estás seguro de ${category.active ? 'desactivar' : 'activar'} "${category.name}"?`,
       onConfirm: async () => {
         try {
-          await productsService.toggleActive(product.id);
+          await categoriesService.toggleActive(category.id);
           setToast({
-            message: `Producto ${product.active ? 'desactivado' : 'activado'} exitosamente`,
+            message: `Categoría ${category.active ? 'desactivada' : 'activada'} exitosamente`,
             type: 'success'
           });
-          invalidateProducts(); // Invalidar caché
-          loadProducts();
-        } catch (error) {
+          loadCategories();
+        } catch (error: any) {
           setToast({
-            message: 'Error al cambiar estado del producto',
+            message: error.response?.data?.message || 'Error al cambiar estado de la categoría',
             type: 'error'
           });
         }
@@ -185,15 +133,28 @@ export default function ProductManagement() {
     setShowConfirm(true);
   };
 
-  const handleProductSaved = () => {
-    setShowProductModal(false);
-    setEditingProduct(null);
-    setToast({
-      message: editingProduct ? 'Producto actualizado exitosamente' : 'Producto creado exitosamente',
-      type: 'success'
+  const handleDeleteCategory = async (category: Category) => {
+    setConfirmAction({
+      title: 'Eliminar Categoría',
+      message: `¿Estás seguro de eliminar "${category.name}"? Esta acción no se puede deshacer.`,
+      onConfirm: async () => {
+        try {
+          await categoriesService.delete(category.id);
+          setToast({
+            message: 'Categoría eliminada exitosamente',
+            type: 'success'
+          });
+          loadCategories();
+        } catch (error: any) {
+          setToast({
+            message: error.response?.data?.message || 'Error al eliminar categoría',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
     });
-    invalidateProducts(); // Invalidar caché
-    loadProducts();
+    setShowConfirm(true);
   };
 
   const handlePasswordChanged = () => {
@@ -206,49 +167,19 @@ export default function ProductManagement() {
     }, 1500);
   };
 
-  // Función para refrescar forzando recarga desde servidor
   const handleRefresh = () => {
-    invalidateProducts();
-    loadProducts();
+    loadCategories();
     setToast({
-      message: 'Productos actualizados',
+      message: 'Datos actualizados',
       type: 'info'
     });
   };
 
-  const getTypeBadgeColor = (type: string) => {
-    switch (type) {
-      case 'bano': return 'bg-blue-100 text-blue-800';
-      case 'ducha': return 'bg-green-100 text-green-800';
-      case 'locker': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'bano': return 'Baño';
-      case 'ducha': return 'Ducha';
-      case 'locker': return 'Locker';
-      default: return type;
-    }
-  };
-
-  // Verificar si el botón de crear producto está deshabilitado
-  const isCreateProductDisabled = !canAddProducts(pagination.total);
-
   // Opciones para los filtros
-  const typeOptions = [
-    { value: 'all', label: 'Todos los tipos' },
-    { value: 'bano', label: 'Baño' },
-    { value: 'ducha', label: 'Ducha' },
-    { value: 'locker', label: 'Locker' }
-  ];
-
   const activeOptions = [
     { value: 'all', label: 'Todos los estados' },
-    { value: 'true', label: 'Activos' },
-    { value: 'false', label: 'Inactivos' }
+    { value: 'true', label: 'Activas' },
+    { value: 'false', label: 'Inactivas' }
   ];
 
   return (
@@ -258,7 +189,6 @@ export default function ProductManagement() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              {/* Logo de la empresa */}
               {business?.logo_url ? (
                 <img 
                   src={business.logo_url} 
@@ -275,7 +205,7 @@ export default function ProductManagement() {
               
               <div>
                 <h1 className="text-xl font-bold" style={{ color: business?.primary_color || '#1F2937' }}>
-                  Gestión de Productos
+                  Gestión de Categorías
                 </h1>
                 <p className="text-sm text-gray-600">{currentUser?.name} - Administrador</p>
               </div>
@@ -300,7 +230,7 @@ export default function ProductManagement() {
             </div>
           </div>
 
-          {/* Menú de navegación con color de la empresa */}
+          {/* Menú de navegación */}
           <div className="flex gap-2 mt-4 border-t pt-4">
             <button
               onClick={() => navigate('/reportes')}
@@ -371,15 +301,10 @@ export default function ProductManagement() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <Package style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">
-                  Productos y Servicios ({pagination.total})
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Límite de tu plan: {pagination.total} / {planLimits.maxProducts === -1 ? 'Ilimitado' : planLimits.maxProducts}
-                </p>
-              </div>
+              <FolderOpen style={{ color: business?.primary_color || '#3B82F6' }} size={24} />
+              <h2 className="text-lg font-bold text-gray-800">
+                Categorías de Productos ({pagination.total})
+              </h2>
             </div>
             <div className="flex gap-2">
               <button
@@ -391,17 +316,12 @@ export default function ProductManagement() {
                 Actualizar
               </button>
               <button
-                onClick={handleCreateProduct}
-                className={`flex items-center gap-2 px-4 py-2 text-white rounded-lg transition ${
-                  isCreateProductDisabled 
-                    ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-500' 
-                    : 'hover:opacity-90'
-                }`}
-                style={!isCreateProductDisabled ? { backgroundColor: business?.primary_color || '#3B82F6' } : {}}
-                title={isCreateProductDisabled ? 'Límite alcanzado - Click para actualizar plan' : 'Crear nuevo producto'}
+                onClick={handleCreateCategory}
+                className="flex items-center gap-2 px-4 py-2 text-white rounded-lg transition hover:opacity-90"
+                style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
               >
-                {isCreateProductDisabled ? <Lock size={20} /> : <Plus size={20} />}
-                Nuevo Producto
+                <Plus size={20} />
+                Nueva Categoría
               </button>
             </div>
           </div>
@@ -409,8 +329,7 @@ export default function ProductManagement() {
 
         {/* Filtros */}
         <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            {/* Barra de búsqueda */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Buscar
@@ -422,15 +341,6 @@ export default function ProductManagement() {
               />
             </div>
 
-            {/* Filtro por tipo */}
-            <FilterSelect
-              label="Tipo"
-              value={filters.type}
-              onChange={(value) => updateFilter('type', value)}
-              options={typeOptions}
-            />
-
-            {/* Filtro por estado */}
             <FilterSelect
               label="Estado"
               value={filters.active}
@@ -439,23 +349,30 @@ export default function ProductManagement() {
             />
           </div>
 
-          {/* Acciones de filtros */}
           <FilterActions
             onClearFilters={clearFilters}
             hasActiveFilters={hasActiveFilters()}
           />
         </div>
 
-        {/* Tabla de Productos */}
+        {/* Tabla de Categorías */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {loading ? (
             <div className="flex justify-center items-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
-          ) : products.length === 0 ? (
+          ) : categories.length === 0 ? (
             <div className="text-center py-12">
-              <Package className="mx-auto text-gray-400 mb-4" size={48} />
-              <p className="text-gray-500">No se encontraron productos</p>
+              <FolderOpen className="mx-auto text-gray-400 mb-4" size={48} />
+              <p className="text-gray-500">No se encontraron categorías</p>
+              <button
+                onClick={handleCreateCategory}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-white rounded-lg transition hover:opacity-90"
+                style={{ backgroundColor: business?.primary_color || '#3B82F6' }}
+              >
+                <Plus size={20} />
+                Crear primera categoría
+              </button>
             </div>
           ) : (
             <>
@@ -467,10 +384,7 @@ export default function ProductManagement() {
                         Nombre
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Tipo
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Precio
+                        Descripción
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Estado
@@ -484,37 +398,35 @@ export default function ProductManagement() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {products.map((product) => (
-                      <tr key={product.id} className={!product.active ? 'bg-gray-50' : 'hover:bg-gray-50'}>
+                    {categories.map((category) => (
+                      <tr key={category.id} className={!category.active ? 'bg-gray-50' : 'hover:bg-gray-50'}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                          <div className="flex items-center gap-2">
+                            <FolderOpen size={18} style={{ color: business?.primary_color || '#3B82F6' }} />
+                            <span className="text-sm font-medium text-gray-900">{category.name}</span>
+                          </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(product.type)}`}>
-                            {getTypeLabel(product.type)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 font-semibold">
-                            ${product.price.toFixed(2)} MXN
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-600 max-w-md truncate">
+                            {category.description || '-'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            product.active 
+                            category.active 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-red-100 text-red-800'
                           }`}>
-                            {product.active ? 'Activo' : 'Inactivo'}
+                            {category.active ? 'Activa' : 'Inactiva'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {new Date(product.created_at).toLocaleDateString('es-MX')}
+                          {new Date(category.created_at).toLocaleDateString('es-MX')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex justify-end gap-2">
                             <button
-                              onClick={() => handleEditProduct(product)}
+                              onClick={() => handleEditCategory(category)}
                               className="hover:text-blue-900 transition"
                               style={{ color: business?.primary_color || '#3B82F6' }}
                               title="Editar"
@@ -522,15 +434,22 @@ export default function ProductManagement() {
                               <Edit size={18} />
                             </button>
                             <button
-                              onClick={() => handleToggleActive(product)}
+                              onClick={() => handleToggleActive(category)}
                               className={`transition ${
-                                product.active 
+                                category.active 
                                   ? 'text-red-600 hover:text-red-900' 
                                   : 'text-green-600 hover:text-green-900'
                               }`}
-                              title={product.active ? 'Desactivar' : 'Activar'}
+                              title={category.active ? 'Desactivar' : 'Activar'}
                             >
                               <Power size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(category)}
+                              className="text-red-600 hover:text-red-900 transition"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={18} />
                             </button>
                           </div>
                         </td>
@@ -540,7 +459,6 @@ export default function ProductManagement() {
                 </table>
               </div>
 
-              {/* Paginación */}
               <Pagination
                 currentPage={pagination.page}
                 totalPages={pagination.totalPages}
@@ -554,17 +472,25 @@ export default function ProductManagement() {
         </div>
       </div>
 
-      {/* Modales */}
-      {showProductModal && (
-        <ProductModal
-          product={editingProduct}
-          onClose={() => {
-            setShowProductModal(false);
-            setEditingProduct(null);
-          }}
-          onSuccess={handleProductSaved}
+      {/* Modal de Categoría */}
+        {showCategoryModal && (
+        <CategoryModal
+            category={editingCategory}
+            onClose={() => {
+            setShowCategoryModal(false);
+            setEditingCategory(null);
+            }}
+            onSuccess={() => {
+            setShowCategoryModal(false);
+            setEditingCategory(null);
+            setToast({
+                message: editingCategory ? 'Categoría actualizada exitosamente' : 'Categoría creada exitosamente',
+                type: 'success'
+            });
+            loadCategories();
+            }}
         />
-      )}
+        )}
 
       {showChangePasswordModal && (
         <ChangePasswordModal
@@ -573,19 +499,6 @@ export default function ProductManagement() {
         />
       )}
 
-      {/* Modal de Upgrade */}
-      {showUpgradeModal && (
-        <UpgradeModal
-          isOpen={showUpgradeModal}
-          onClose={() => setShowUpgradeModal(false)}
-          currentPlan={currentPlan}
-          recommendedPlan={getRecommendedUpgrade() || 'premium'}
-          feature="Límite de productos"
-          message={getProductLimitMessage()}
-        />
-      )}
-
-      {/* Modal de Confirmación */}
       {showConfirm && confirmAction && (
         <ConfirmModal
           isOpen={showConfirm}
@@ -597,7 +510,6 @@ export default function ProductManagement() {
         />
       )}
 
-      {/* Toast de Notificación */}
       {toast && (
         <Toast
           message={toast.message}

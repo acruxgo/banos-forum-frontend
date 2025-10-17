@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { productsService } from '../services/api';
-import { X, Package, DollarSign, Tag, Check, AlertCircle } from 'lucide-react';
+import { productsService, categoriesService } from '../services/api';
+import { X, Package, DollarSign, Tag, Check, AlertCircle, FolderOpen } from 'lucide-react';
 import { validateProductName, validatePrice } from '../utils/validators';
 
 interface ProductModalProps {
@@ -13,8 +13,11 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    type: 'bano'
+    type: 'bano',
+    category_id: ''
   });
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [checkingName, setCheckingName] = useState(false);
@@ -22,20 +25,41 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
   // Estados de validación en tiempo real
   const [validationErrors, setValidationErrors] = useState({
     name: '',
-    price: ''
+    price: '',
+    category_id: ''
   });
 
   const [touched, setTouched] = useState({
     name: false,
-    price: false
+    price: false,
+    category_id: false
   });
+
+  // Cargar categorías
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const response = await categoriesService.getAll({ active: true });
+      if (response.data.success) {
+        setCategories(response.data.data);
+      }
+    } catch (err) {
+      console.error('Error al cargar categorías:', err);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
 
   useEffect(() => {
     if (product) {
       setFormData({
         name: product.name,
         price: product.price.toString(),
-        type: product.type
+        type: product.type,
+        category_id: product.category_id || ''
       });
     }
   }, [product]);
@@ -51,7 +75,6 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     try {
       const response = await productsService.getAll({ search: name });
       if (response.data.success && response.data.data.length > 0) {
-        // Si encontró productos con ese nombre
         const existingProduct = response.data.data.find((p: any) => 
           p.name.toLowerCase() === name.trim().toLowerCase() && p.id !== product?.id
         );
@@ -96,7 +119,19 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     }
   };
 
-  const handleBlur = (field: 'name' | 'price') => {
+  // Validación en tiempo real - Categoría
+  const handleCategoryChange = (value: string) => {
+    setFormData({ ...formData, category_id: value });
+    
+    if (touched.category_id) {
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        category_id: value ? '' : 'Debes seleccionar una categoría' 
+      }));
+    }
+  };
+
+  const handleBlur = (field: 'name' | 'price' | 'category_id') => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
     // Validar al perder foco
@@ -106,7 +141,6 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
         ...prev, 
         name: validation.valid ? '' : validation.error || '' 
       }));
-      // Verificar duplicado
       if (validation.valid) {
         checkNameDuplicate(formData.name);
       }
@@ -117,10 +151,14 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
         price: validation.valid ? '' : validation.error || '' 
       }));
 
-      // Auto-formatear el precio al perder foco
       if (validation.valid && validation.value) {
         setFormData(prev => ({ ...prev, price: validation.value!.toFixed(2) }));
       }
+    } else if (field === 'category_id') {
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        category_id: formData.category_id ? '' : 'Debes seleccionar una categoría' 
+      }));
     }
   };
 
@@ -129,7 +167,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     setError('');
 
     // Marcar todos como touched
-    setTouched({ name: true, price: true });
+    setTouched({ name: true, price: true, category_id: true });
 
     // Validar nombre
     const nameValidation = validateProductName(formData.name);
@@ -145,12 +183,19 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       return;
     }
 
+    // Validar categoría
+    if (!formData.category_id) {
+      setValidationErrors(prev => ({ ...prev, category_id: 'Debes seleccionar una categoría' }));
+      return;
+    }
+
     setLoading(true);
     try {
       const productData = {
         name: formData.name.trim(),
         price: priceValidation.value!,
-        type: formData.type
+        type: formData.type,
+        category_id: formData.category_id
       };
 
       if (product) {
@@ -162,9 +207,10 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       onSuccess();
     } catch (err: any) {
       const errorMsg = err.response?.data?.message || 'Error al guardar producto';
-      // Detectar error de duplicado del backend
       if (errorMsg.toLowerCase().includes('nombre') && errorMsg.toLowerCase().includes('existe')) {
         setValidationErrors(prev => ({ ...prev, name: 'Ya existe un producto con este nombre' }));
+      } else if (errorMsg.toLowerCase().includes('categoría')) {
+        setValidationErrors(prev => ({ ...prev, category_id: errorMsg }));
       } else {
         setError(errorMsg);
       }
@@ -175,11 +221,11 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
 
   // Verificar si hay errores de validación
   const hasValidationErrors = Object.values(validationErrors).some(err => err !== '');
-  const isFormValid = formData.name && formData.price && !hasValidationErrors && !checkingName;
+  const isFormValid = formData.name && formData.price && formData.category_id && !hasValidationErrors && !checkingName;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -197,12 +243,66 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Categoría - PRIMERO Y OBLIGATORIO */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="flex items-center gap-2">
+                <FolderOpen size={16} />
+                Categoría <span className="text-red-500">*</span>
+              </div>
+            </label>
+            <div className="relative">
+              <select
+                value={formData.category_id}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                onBlur={() => handleBlur('category_id')}
+                className={`w-full px-4 py-3 pr-10 border rounded-lg outline-none transition ${
+                  touched.category_id && validationErrors.category_id
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : touched.category_id && formData.category_id
+                    ? 'border-green-500 focus:ring-2 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                }`}
+                disabled={loadingCategories}
+              >
+                <option value="">
+                  {loadingCategories ? 'Cargando categorías...' : 'Selecciona una categoría'}
+                </option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              {touched.category_id && formData.category_id && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  {validationErrors.category_id ? (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-500" />
+                  )}
+                </div>
+              )}
+            </div>
+            {touched.category_id && validationErrors.category_id && (
+              <p className="text-xs text-red-600 mt-1">{validationErrors.category_id}</p>
+            )}
+            {touched.category_id && !validationErrors.category_id && formData.category_id && (
+              <p className="text-xs text-green-600 mt-1">✓ Categoría seleccionada</p>
+            )}
+            {categories.length === 0 && !loadingCategories && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ No hay categorías activas. Crea una primero en Gestión de Categorías.
+              </p>
+            )}
+          </div>
+
           {/* Nombre */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <div className="flex items-center gap-2">
                 <Tag size={16} />
-                Nombre del Producto/Servicio
+                Nombre del Producto/Servicio <span className="text-red-500">*</span>
               </div>
             </label>
             <div className="relative">
@@ -271,7 +371,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <div className="flex items-center gap-2">
                 <DollarSign size={16} />
-                Precio (MXN)
+                Precio (MXN) <span className="text-red-500">*</span>
               </div>
             </label>
             <div className="relative">
@@ -334,7 +434,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
             </button>
             <button
               type="submit"
-              disabled={loading || !isFormValid}
+              disabled={loading || !isFormValid || categories.length === 0}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Guardando...' : (product ? 'Actualizar' : 'Crear Producto')}

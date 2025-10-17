@@ -5,6 +5,7 @@ import CajaPOS from './pages/CajaPOS';
 import SupervisorDashboard from './pages/SupervisorDashboard';
 import AdminReports from './pages/AdminReports';
 import UserManagement from './pages/UserManagement';
+import CategoryManagement from './pages/CategoryManagement';
 import ProductManagement from './pages/ProductManagement';
 import BusinessManagement from './pages/BusinessManagement';
 
@@ -37,6 +38,7 @@ function App() {
           <Route path="/" element={<Navigate to="/reportes" replace />} />
           <Route path="/reportes" element={<AdminReports />} />
           <Route path="/usuarios" element={<UserManagement />} />
+          <Route path="/categorias" element={<CategoryManagement />} />
           <Route path="/productos" element={<ProductManagement />} />
           <Route path="*" element={<Navigate to="/reportes" replace />} />
         </Routes>
