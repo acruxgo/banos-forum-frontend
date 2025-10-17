@@ -66,6 +66,8 @@ export const productsService = {
   update: (id: string, productData: { name: string; price: number; type: string; category_id: string }) =>
     api.put(`/products/${id}`, productData),
   toggleActive: (id: string) => api.patch(`/products/${id}/toggle-active`),
+  delete: (id: string) => api.delete(`/products/${id}`),
+  restore: (id: string) => api.patch(`/products/${id}/restore`),
 };
 
 // Servicios de empresas (solo super admin)
@@ -97,6 +99,8 @@ export const usersService = {
   update: (id: string, userData: { email: string; name: string; role: string; password?: string }) =>
     api.put(`/users/${id}`, userData),
   toggleActive: (id: string) => api.patch(`/users/${id}/toggle-active`),
+  delete: (id: string) => api.delete(`/users/${id}`),
+  restore: (id: string) => api.patch(`/users/${id}/restore`),
 };
 
 // Servicios de turnos

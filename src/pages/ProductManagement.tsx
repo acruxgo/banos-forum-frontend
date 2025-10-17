@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCacheStore } from '../store/cacheStore';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { productsService } from '../services/api';
-import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock } from 'lucide-react';
+import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock, Trash2, RotateCcw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ProductModal from '../components/ProductModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -23,6 +23,7 @@ interface Product {
   type: 'bano' | 'ducha' | 'locker';
   active: boolean;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 interface PaginationMeta {
@@ -85,7 +86,8 @@ export default function ProductManagement() {
     initialFilters: {
       search: '',
       type: 'all',
-      active: 'all'
+      active: 'all',
+      show_deleted: 'false'
     }
   });
 
@@ -94,7 +96,7 @@ export default function ProductManagement() {
     setLoading(true);
     try {
       // Si no hay filtros activos, intentar usar caché
-      if (!hasActiveFilters() && page === 1 && limit === 10) {
+      if (!hasActiveFilters() && page === 1 && limit === 10 && filters.show_deleted === 'false') {
         const cachedProducts = getProducts();
         if (cachedProducts) {
           console.log('✨ Productos cargados desde caché');
@@ -119,7 +121,7 @@ export default function ProductManagement() {
         setPagination(response.data.pagination);
         
         // Guardar en caché solo si no hay filtros
-        if (!hasActiveFilters() && page === 1 && limit === 10) {
+          if (!hasActiveFilters() && page === 1 && limit === 10 && filters.show_deleted === 'false') {
           setProducts(response.data.data);
           console.log('💾 Productos guardados en caché');
         }
@@ -136,9 +138,10 @@ export default function ProductManagement() {
   };
 
   // Recargar cuando cambien los filtros o la página
-  useEffect(() => {
+useEffect(() => {
+    invalidateProducts();
     loadProducts();
-  }, [page, limit, filters.search, filters.type, filters.active]);
+  }, [page, limit, filters.search, filters.type, filters.active, filters.show_deleted]);
 
   const handleCreateProduct = () => {
     // Verificar si puede agregar más productos
@@ -176,6 +179,56 @@ export default function ProductManagement() {
         } catch (error) {
           setToast({
             message: 'Error al cambiar estado del producto',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    setConfirmAction({
+      title: 'Eliminar Producto',
+      message: `¿Estás seguro de eliminar "${product.name}"? El producto será marcado como eliminado pero podrá ser restaurado después.`,
+      onConfirm: async () => {
+        try {
+          await productsService.delete(product.id);
+          setToast({
+            message: 'Producto eliminado exitosamente',
+            type: 'success'
+          });
+          invalidateProducts();
+          loadProducts();
+        } catch (error) {
+          setToast({
+            message: 'Error al eliminar producto',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
+  };
+
+  const handleRestoreProduct = async (product: Product) => {
+    setConfirmAction({
+      title: 'Restaurar Producto',
+      message: `¿Estás seguro de restaurar "${product.name}"?`,
+      onConfirm: async () => {
+        try {
+          await productsService.restore(product.id);
+          setToast({
+            message: 'Producto restaurado exitosamente',
+            type: 'success'
+          });
+          invalidateProducts();
+          loadProducts();
+        } catch (error) {
+          setToast({
+            message: 'Error al restaurar producto',
             type: 'error'
           });
         }
@@ -439,14 +492,28 @@ export default function ProductManagement() {
             />
           </div>
 
+          {/* Checkbox mostrar eliminados */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filters.show_deleted === 'only'}
+                  onChange={(e) => updateFilter('show_deleted', e.target.checked ? 'only' : 'false')}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Mostrar eliminados
+              </label>
+              </div>
+            </div>
+
           {/* Acciones de filtros */}
           <FilterActions
             onClearFilters={clearFilters}
             hasActiveFilters={hasActiveFilters()}
           />
-        </div>
-
-        {/* Tabla de Productos */}
+          </div>
+          {/* Tabla de Productos */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -484,58 +551,96 @@ export default function ProductManagement() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {products.map((product) => (
-                      <tr key={product.id} className={!product.active ? 'bg-gray-50' : 'hover:bg-gray-50'}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(product.type)}`}>
-                            {getTypeLabel(product.type)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 font-semibold">
-                            ${product.price.toFixed(2)} MXN
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            product.active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {product.active ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {new Date(product.created_at).toLocaleDateString('es-MX')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => handleEditProduct(product)}
-                              className="hover:text-blue-900 transition"
-                              style={{ color: business?.primary_color || '#3B82F6' }}
-                              title="Editar"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleToggleActive(product)}
-                              className={`transition ${
-                                product.active 
-                                  ? 'text-red-600 hover:text-red-900' 
-                                  : 'text-green-600 hover:text-green-900'
-                              }`}
-                              title={product.active ? 'Desactivar' : 'Activar'}
-                            >
-                              <Power size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {products.map((product) => {
+                      const isDeleted = !!product.deleted_at;
+                      return (
+                        <tr 
+                          key={product.id} 
+                          className={
+                            isDeleted 
+                              ? 'bg-red-50 opacity-75' 
+                              : !product.active 
+                              ? 'bg-gray-50' 
+                              : 'hover:bg-gray-50'
+                          }
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                              {isDeleted && (
+                                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                  Eliminado
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(product.type)}`}>
+                              {getTypeLabel(product.type)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900 font-semibold">
+                              ${product.price.toFixed(2)} MXN
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              product.active 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {product.active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {new Date(product.created_at).toLocaleDateString('es-MX')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end gap-2">
+                              {isDeleted ? (
+                                <button
+                                  onClick={() => handleRestoreProduct(product)}
+                                  className="text-green-600 hover:text-green-900 transition"
+                                  title="Restaurar producto"
+                                >
+                                  <RotateCcw size={18} />
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleEditProduct(product)}
+                                    className="hover:text-blue-900 transition"
+                                    style={{ color: business?.primary_color || '#3B82F6' }}
+                                    title="Editar"
+                                  >
+                                    <Edit size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleActive(product)}
+                                    className={`transition ${
+                                      product.active 
+                                        ? 'text-orange-600 hover:text-orange-900' 
+                                        : 'text-green-600 hover:text-green-900'
+                                    }`}
+                                    title={product.active ? 'Desactivar' : 'Activar'}
+                                  >
+                                    <Power size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(product)}
+                                    className="text-red-600 hover:text-red-900 transition"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

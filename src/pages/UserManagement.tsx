@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCacheStore } from '../store/cacheStore';
 import { usePlanLimits } from '../hooks/usePlanLimits';
 import { usersService } from '../services/api';
-import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock } from 'lucide-react';
+import { Users, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock, Trash2, RotateCcw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import UserModal from '../components/UserModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -23,6 +23,7 @@ interface User {
   role: 'admin' | 'supervisor' | 'cajero';
   active: boolean;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 interface PaginationMeta {
@@ -85,14 +86,15 @@ export default function UserManagement() {
     initialFilters: {
       search: '',
       role: 'all',
-      active: 'all'
+      active: 'all',
+      show_deleted: 'false'
     }
   });
 
   // Cargar usuarios con caché
   const loadUsers = async (forceRefresh = false) => {
     // Si no hay filtros activos y no es refresh forzado, intentar usar caché
-    if (!forceRefresh && !hasActiveFilters() && page === 1) {
+    if (!forceRefresh && !hasActiveFilters() && page === 1 && filters.show_deleted === 'false') {
       const cachedUsers = getUsers();
       if (cachedUsers && cachedUsers.length > 0) {
         console.log('✨ Usuarios cargados desde caché');
@@ -117,7 +119,7 @@ export default function UserManagement() {
         setPagination(response.data.pagination);
         
         // Guardar en caché solo si no hay filtros (datos completos)
-        if (!hasActiveFilters() && page === 1) {
+        if (!hasActiveFilters() && page === 1 && filters.show_deleted === 'false') {
           setUsers(response.data.data);
           console.log('💾 Usuarios guardados en caché');
         }
@@ -134,9 +136,10 @@ export default function UserManagement() {
   };
 
   // Recargar cuando cambien los filtros o la página
-  useEffect(() => {
+useEffect(() => {
+    invalidateUsers();
     loadUsers();
-  }, [page, limit, filters.search, filters.role, filters.active]);
+  }, [page, limit, filters.search, filters.role, filters.active, filters.show_deleted]);
 
   const handleCreateUser = () => {
     // Verificar si puede agregar más usuarios
@@ -175,6 +178,56 @@ export default function UserManagement() {
         } catch (error) {
           setToast({
             message: 'Error al cambiar estado del usuario',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
+  };
+
+const handleDeleteUser = async (user: User) => {
+    setConfirmAction({
+      title: 'Eliminar Usuario',
+      message: `¿Estás seguro de eliminar a ${user.name}? El usuario será marcado como eliminado pero podrá ser restaurado después.`,
+      onConfirm: async () => {
+        try {
+          await usersService.delete(user.id);
+          setToast({
+            message: 'Usuario eliminado exitosamente',
+            type: 'success'
+          });
+          invalidateUsers();
+          loadUsers(true);
+        } catch (error) {
+          setToast({
+            message: 'Error al eliminar usuario',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
+  };
+
+  const handleRestoreUser = async (user: User) => {
+    setConfirmAction({
+      title: 'Restaurar Usuario',
+      message: `¿Estás seguro de restaurar a ${user.name}?`,
+      onConfirm: async () => {
+        try {
+          await usersService.restore(user.id);
+          setToast({
+            message: 'Usuario restaurado exitosamente',
+            type: 'success'
+          });
+          invalidateUsers();
+          loadUsers(true);
+        } catch (error) {
+          setToast({
+            message: 'Error al restaurar usuario',
             type: 'error'
           });
         }
@@ -429,13 +482,26 @@ export default function UserManagement() {
             />
           </div>
 
+          {/* Checkbox mostrar eliminados */}
+          <div className="flex items-center justify-between mb-4">
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                  type="checkbox"
+                  checked={filters.show_deleted === 'only'}
+                  onChange={(e) => updateFilter('show_deleted', e.target.checked ? 'only' : 'false')}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+              Mostrar eliminados
+            </label>
+          </div>
+
           {/* Acciones de filtros */}
           <FilterActions
             onClearFilters={clearFilters}
             hasActiveFilters={hasActiveFilters()}
           />
-        </div>
-
+          </div>
+       
         {/* Tabla de Usuarios */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {loading ? (
@@ -474,56 +540,94 @@ export default function UserManagement() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {users.map((user) => (
-                      <tr key={user.id} className={!user.active ? 'bg-gray-50' : 'hover:bg-gray-50'}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-600">{user.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            user.active 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {user.active ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {new Date(user.created_at).toLocaleDateString('es-MX')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => handleEditUser(user)}
-                              className="hover:text-blue-900 transition"
-                              style={{ color: business?.primary_color || '#3B82F6' }}
-                              title="Editar"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleToggleActive(user)}
-                              className={`transition ${
-                                user.active 
-                                  ? 'text-red-600 hover:text-red-900' 
-                                  : 'text-green-600 hover:text-green-900'
-                              }`}
-                              title={user.active ? 'Desactivar' : 'Activar'}
-                            >
-                              <Power size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {users.map((user) => {
+                      const isDeleted = !!user.deleted_at;
+                      return (
+                        <tr 
+                          key={user.id} 
+                          className={
+                            isDeleted 
+                              ? 'bg-red-50 opacity-75' 
+                              : !user.active 
+                              ? 'bg-gray-50' 
+                              : 'hover:bg-gray-50'
+                          }
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                              {isDeleted && (
+                                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                  Eliminado
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-600">{user.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              user.active 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {user.active ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                            {new Date(user.created_at).toLocaleDateString('es-MX')}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end gap-2">
+                              {isDeleted ? (
+                                <button
+                                  onClick={() => handleRestoreUser(user)}
+                                  className="text-green-600 hover:text-green-900 transition"
+                                  title="Restaurar usuario"
+                                >
+                                  <RotateCcw size={18} />
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleEditUser(user)}
+                                    className="hover:text-blue-900 transition"
+                                    style={{ color: business?.primary_color || '#3B82F6' }}
+                                    title="Editar"
+                                  >
+                                    <Edit size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleToggleActive(user)}
+                                    className={`transition ${
+                                      user.active 
+                                        ? 'text-orange-600 hover:text-orange-900' 
+                                        : 'text-green-600 hover:text-green-900'
+                                    }`}
+                                    title={user.active ? 'Desactivar' : 'Activar'}
+                                  >
+                                    <Power size={18} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(user)}
+                                    className="text-red-600 hover:text-red-900 transition"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
