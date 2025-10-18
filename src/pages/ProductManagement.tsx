@@ -91,26 +91,25 @@ export default function ProductManagement() {
     }
   });
 
-  // Cargar productos con caché
-  const loadProducts = async () => {
+const loadProducts = async (forceRefresh = false) => {
     setLoading(true);
     try {
-      // Si no hay filtros activos, intentar usar caché
-      if (!hasActiveFilters() && page === 1 && limit === 10 && filters.show_deleted === 'false') {
-        const cachedProducts = getProducts();
-        if (cachedProducts) {
-          console.log('✨ Productos cargados desde caché');
-          setProductsState(cachedProducts);
-          setPagination({
-            total: cachedProducts.length,
-            page: 1,
-            limit: 10,
-            totalPages: Math.ceil(cachedProducts.length / 10)
-          });
-          setLoading(false);
-          return;
-        }
-      }
+      // CACHÉ DESACTIVADO TEMPORALMENTE
+      // if (!forceRefresh && !hasActiveFilters() && page === 1 && limit === 10 && filters.show_deleted === 'false') {
+      //   const cachedProducts = getProducts();
+      //   if (cachedProducts) {
+      //     console.log('✨ Productos cargados desde caché');
+      //     setProductsState(cachedProducts);
+      //     setPagination({
+      //       total: cachedProducts.length,
+      //       page: 1,
+      //       limit: 10,
+      //       totalPages: Math.ceil(cachedProducts.length / 10)
+      //     });
+      //     setLoading(false);
+      //     return;
+      //   }
+      // }
 
       // Si hay filtros o no hay caché, hacer petición
       const params = getQueryParams();
@@ -120,11 +119,11 @@ export default function ProductManagement() {
         setProductsState(response.data.data);
         setPagination(response.data.pagination);
         
-        // Guardar en caché solo si no hay filtros
-          if (!hasActiveFilters() && page === 1 && limit === 10 && filters.show_deleted === 'false') {
-          setProducts(response.data.data);
-          console.log('💾 Productos guardados en caché');
-        }
+        // CACHÉ DESACTIVADO TEMPORALMENTE
+        // if (!hasActiveFilters() && page === 1 && limit === 10 && filters.show_deleted === 'false') {
+        //   setProducts(response.data.data);
+        //   console.log('💾 Productos guardados en caché');
+        // }
       }
     } catch (error) {
       console.error('Error al cargar productos:', error);
@@ -139,8 +138,7 @@ export default function ProductManagement() {
 
   // Recargar cuando cambien los filtros o la página
 useEffect(() => {
-    invalidateProducts();
-    loadProducts();
+    loadProducts(true);  // ← Pasar true para forzar refresh
   }, [page, limit, filters.search, filters.type, filters.active, filters.show_deleted]);
 
   const handleCreateProduct = () => {
@@ -492,27 +490,7 @@ useEffect(() => {
             />
           </div>
 
-          {/* Checkbox mostrar eliminados */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.show_deleted === 'only'}
-                  onChange={(e) => updateFilter('show_deleted', e.target.checked ? 'only' : 'false')}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                Mostrar eliminados
-              </label>
               </div>
-            </div>
-
-          {/* Acciones de filtros */}
-          <FilterActions
-            onClearFilters={clearFilters}
-            hasActiveFilters={hasActiveFilters()}
-          />
-          </div>
           {/* Tabla de Productos */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           {loading ? (

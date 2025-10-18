@@ -92,22 +92,22 @@ export default function UserManagement() {
   });
 
   // Cargar usuarios con caché
-  const loadUsers = async (forceRefresh = false) => {
-    // Si no hay filtros activos y no es refresh forzado, intentar usar caché
-    if (!forceRefresh && !hasActiveFilters() && page === 1 && filters.show_deleted === 'false') {
-      const cachedUsers = getUsers();
-      if (cachedUsers && cachedUsers.length > 0) {
-        console.log('✨ Usuarios cargados desde caché');
-        setLocalUsers(cachedUsers);
-        setPagination({
-          total: cachedUsers.length,
-          page: 1,
-          limit: limit,
-          totalPages: Math.ceil(cachedUsers.length / limit)
-        });
-        return;
-      }
-    }
+const loadUsers = async (forceRefresh = false) => {
+    // CACHÉ DESACTIVADO TEMPORALMENTE
+    // if (!forceRefresh && !hasActiveFilters() && page === 1 && filters.show_deleted === 'false') {
+    //   const cachedUsers = getUsers();
+    //   if (cachedUsers && cachedUsers.length > 0) {
+    //     console.log('✨ Usuarios cargados desde caché');
+    //     setLocalUsers(cachedUsers);
+    //     setPagination({
+    //       total: cachedUsers.length,
+    //       page: 1,
+    //       limit: limit,
+    //       totalPages: Math.ceil(cachedUsers.length / limit)
+    //     });
+    //     return;
+    //   }
+    // }
 
     setLoading(true);
     try {
@@ -118,8 +118,8 @@ export default function UserManagement() {
         setLocalUsers(response.data.data);
         setPagination(response.data.pagination);
         
-        // Guardar en caché solo si no hay filtros (datos completos)
-        if (!hasActiveFilters() && page === 1 && filters.show_deleted === 'false') {
+// CACHÉ DESACTIVADO TEMPORALMENTE
+        if (false) {
           setUsers(response.data.data);
           console.log('💾 Usuarios guardados en caché');
         }
@@ -137,8 +137,7 @@ export default function UserManagement() {
 
   // Recargar cuando cambien los filtros o la página
 useEffect(() => {
-    invalidateUsers();
-    loadUsers();
+    loadUsers(true);  // ← Pasar true para forzar refresh
   }, [page, limit, filters.search, filters.role, filters.active, filters.show_deleted]);
 
   const handleCreateUser = () => {
@@ -482,25 +481,12 @@ const handleDeleteUser = async (user: User) => {
             />
           </div>
 
-          {/* Checkbox mostrar eliminados */}
-          <div className="flex items-center justify-between mb-4">
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input
-                  type="checkbox"
-                  checked={filters.show_deleted === 'only'}
-                  onChange={(e) => updateFilter('show_deleted', e.target.checked ? 'only' : 'false')}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-              Mostrar eliminados
-            </label>
-          </div>
-
-          {/* Acciones de filtros */}
+        {/* Acciones de filtros */}
           <FilterActions
             onClearFilters={clearFilters}
             hasActiveFilters={hasActiveFilters()}
           />
-          </div>
+        </div>
        
         {/* Tabla de Usuarios */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
