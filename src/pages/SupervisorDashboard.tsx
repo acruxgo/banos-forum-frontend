@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Shift, Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { shiftsService, transactionsService, reportsService } from '../services/api';
-import { Users, DollarSign, TrendingUp, Clock, LogOut, RefreshCw, Key, FileText, FileDown } from 'lucide-react';
+import { Users, DollarSign, TrendingUp, Clock, LogOut, RefreshCw, Key, FileDown } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import { generatePDF, formatDate as formatPDFDate } from '../utils/pdfExport';
 

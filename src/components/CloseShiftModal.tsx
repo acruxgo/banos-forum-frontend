@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Transaction } from '../types';
-import { transactionsService, shiftsService, reportsService } from '../services/api';
+import { transactionsService, shiftsService, } from '../services/api';
 import { X, DollarSign, CreditCard, AlertTriangle, CheckCircle, TrendingUp, Printer } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { generatePDF, formatDate } from '../utils/pdfExport';
@@ -87,8 +87,8 @@ export default function CloseShiftModal({ shiftId, onClose, onSuccess }: CloseSh
   const handlePrintArqueo = async () => {
     setGeneratingPDF(true);
     try {
-      const response = await reportsService.getCashClosingReport(shiftId);
-      const reportData = response.data.data;
+      //const response = await reportsService.getCashClosingReport(shiftId);
+      //const reportData = response.data.data;
       const stats = calculateStats();
       const arqueo = calculateArqueo();
 
