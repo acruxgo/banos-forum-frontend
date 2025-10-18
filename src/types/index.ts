@@ -5,15 +5,38 @@ export interface User {
   role: 'super_admin' | 'admin' | 'supervisor' | 'cajero';
   active: boolean;
   created_at: string;
+  deleted_at?: string | null;
+}
+
+export interface ServiceType {
+  id: string;
+  business_id: string;
+  name: string;
+  description?: string;
+  icon?: string;
+  active: boolean;
+  created_at: string;
 }
 
 export interface Product {
   id: string;
   name: string;
   price: number;
-  type: 'bano' | 'ducha' | 'locker';
+  service_type_id: string;
+  service_types?: {
+    id: string;
+    name: string;
+    icon?: string;
+  };
+  category_id: string;
+  categories?: {
+    id: string;
+    name: string;
+  };
   active: boolean;
   created_at: string;
+  business_id: string;
+  deleted_at?: string | null;
 }
 
 export interface Shift {

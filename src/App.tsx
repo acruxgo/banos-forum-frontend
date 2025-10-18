@@ -9,6 +9,7 @@ import UserManagement from './pages/UserManagement';
 import CategoryManagement from './pages/CategoryManagement';
 import ProductManagement from './pages/ProductManagement';
 import BusinessManagement from './pages/BusinessManagement';
+import ServiceTypeManagement from './pages/ServiceTypeManagement';  // ← AGREGAR
 
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -44,6 +45,7 @@ function App() {
           <Route path="/usuarios" element={<UserManagement />} />
           <Route path="/categorias" element={<CategoryManagement />} />
           <Route path="/productos" element={<ProductManagement />} />
+          <Route path="/tipos-servicio" element={<ServiceTypeManagement />} />  {/* ← AGREGAR */}
           <Route path="*" element={<Navigate to="/reportes" replace />} />
         </Routes>
       </BrowserRouter>

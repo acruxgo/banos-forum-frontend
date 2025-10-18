@@ -57,13 +57,25 @@ export const categoriesService = {
   delete: (id: string) => api.delete(`/categories/${id}`),
 };
 
+// Servicios de tipos de servicio
+export const serviceTypesService = {
+  getAll: () => api.get('/service-types'),
+  getById: (id: string) => api.get(`/service-types/${id}`),
+  create: (data: { name: string; description?: string; icon?: string }) =>
+    api.post('/service-types', data),
+  update: (id: string, data: { name: string; description?: string; icon?: string }) =>
+    api.put(`/service-types/${id}`, data),
+  toggleActive: (id: string) => api.patch(`/service-types/${id}/toggle-active`),
+  delete: (id: string) => api.delete(`/service-types/${id}`)
+};
+
 // Servicios de productos
 export const productsService = {
   getAll: (params?: Record<string, any>) => api.get('/products', { params }),
   getById: (id: string) => api.get(`/products/${id}`),
-  create: (productData: { name: string; price: number; type: string; category_id: string }) =>
+  create: (productData: { name: string; price: number; service_type_id: string; category_id: string }) =>
     api.post('/products', productData),
-  update: (id: string, productData: { name: string; price: number; type: string; category_id: string }) =>
+  update: (id: string, productData: { name: string; price: number; service_type_id: string; category_id: string }) =>
     api.put(`/products/${id}`, productData),
   toggleActive: (id: string) => api.patch(`/products/${id}/toggle-active`),
   delete: (id: string) => api.delete(`/products/${id}`),

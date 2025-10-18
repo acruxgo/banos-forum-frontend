@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { productsService, categoriesService } from '../services/api';
+import { productsService, categoriesService, serviceTypesService } from '../services/api';
 import { X, Package, DollarSign, Tag, Check, AlertCircle, FolderOpen } from 'lucide-react';
 import { validateProductName, validatePrice } from '../utils/validators';
+import type { ServiceType } from '../types';
 
 interface ProductModalProps {
   product: any | null;
@@ -13,11 +14,13 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
   const [formData, setFormData] = useState({
     name: '',
     price: '',
-    type: 'bano',
+    service_type_id: '',
     category_id: ''
   });
   const [categories, setCategories] = useState<any[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loadingServiceTypes, setLoadingServiceTypes] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [checkingName, setCheckingName] = useState(false);
@@ -26,18 +29,21 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
   const [validationErrors, setValidationErrors] = useState({
     name: '',
     price: '',
+    service_type_id: '',
     category_id: ''
   });
 
   const [touched, setTouched] = useState({
     name: false,
     price: false,
+    service_type_id: false,
     category_id: false
   });
 
-  // Cargar categorías
+  // Cargar categorías y tipos de servicio
   useEffect(() => {
     loadCategories();
+    loadServiceTypes();
   }, []);
 
   const loadCategories = async () => {
@@ -53,12 +59,26 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     }
   };
 
+  const loadServiceTypes = async () => {
+    try {
+      const response = await serviceTypesService.getAll();
+      if (response.data.success) {
+        const activeTypes = response.data.data.filter((t: ServiceType) => t.active);
+        setServiceTypes(activeTypes);
+      }
+    } catch (err) {
+      console.error('Error al cargar tipos de servicio:', err);
+    } finally {
+      setLoadingServiceTypes(false);
+    }
+  };
+
   useEffect(() => {
     if (product) {
       setFormData({
         name: product.name,
         price: product.price.toString(),
-        type: product.type,
+        service_type_id: product.service_type_id || '',
         category_id: product.category_id || ''
       });
     }
@@ -119,6 +139,18 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     }
   };
 
+  // Validación en tiempo real - Tipo de Servicio
+  const handleServiceTypeChange = (value: string) => {
+    setFormData({ ...formData, service_type_id: value });
+    
+    if (touched.service_type_id) {
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        service_type_id: value ? '' : 'Debes seleccionar un tipo de servicio' 
+      }));
+    }
+  };
+
   // Validación en tiempo real - Categoría
   const handleCategoryChange = (value: string) => {
     setFormData({ ...formData, category_id: value });
@@ -131,7 +163,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     }
   };
 
-  const handleBlur = (field: 'name' | 'price' | 'category_id') => {
+  const handleBlur = (field: 'name' | 'price' | 'service_type_id' | 'category_id') => {
     setTouched(prev => ({ ...prev, [field]: true }));
     
     // Validar al perder foco
@@ -154,6 +186,11 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       if (validation.valid && validation.value) {
         setFormData(prev => ({ ...prev, price: validation.value!.toFixed(2) }));
       }
+    } else if (field === 'service_type_id') {
+      setValidationErrors(prev => ({ 
+        ...prev, 
+        service_type_id: formData.service_type_id ? '' : 'Debes seleccionar un tipo de servicio' 
+      }));
     } else if (field === 'category_id') {
       setValidationErrors(prev => ({ 
         ...prev, 
@@ -167,7 +204,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
     setError('');
 
     // Marcar todos como touched
-    setTouched({ name: true, price: true, category_id: true });
+    setTouched({ name: true, price: true, service_type_id: true, category_id: true });
 
     // Validar nombre
     const nameValidation = validateProductName(formData.name);
@@ -183,6 +220,12 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       return;
     }
 
+    // Validar tipo de servicio
+    if (!formData.service_type_id) {
+      setValidationErrors(prev => ({ ...prev, service_type_id: 'Debes seleccionar un tipo de servicio' }));
+      return;
+    }
+
     // Validar categoría
     if (!formData.category_id) {
       setValidationErrors(prev => ({ ...prev, category_id: 'Debes seleccionar una categoría' }));
@@ -194,7 +237,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
       const productData = {
         name: formData.name.trim(),
         price: priceValidation.value!,
-        type: formData.type,
+        service_type_id: formData.service_type_id,
         category_id: formData.category_id
       };
 
@@ -211,6 +254,8 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
         setValidationErrors(prev => ({ ...prev, name: 'Ya existe un producto con este nombre' }));
       } else if (errorMsg.toLowerCase().includes('categoría')) {
         setValidationErrors(prev => ({ ...prev, category_id: errorMsg }));
+      } else if (errorMsg.toLowerCase().includes('tipo')) {
+        setValidationErrors(prev => ({ ...prev, service_type_id: errorMsg }));
       } else {
         setError(errorMsg);
       }
@@ -221,7 +266,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
 
   // Verificar si hay errores de validación
   const hasValidationErrors = Object.values(validationErrors).some(err => err !== '');
-  const isFormValid = formData.name && formData.price && formData.category_id && !hasValidationErrors && !checkingName;
+  const isFormValid = formData.name && formData.price && formData.service_type_id && formData.category_id && !hasValidationErrors && !checkingName;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -297,6 +342,60 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
             )}
           </div>
 
+          {/* Tipo de Servicio */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <div className="flex items-center gap-2">
+                <Package size={16} />
+                Tipo de Servicio <span className="text-red-500">*</span>
+              </div>
+            </label>
+            <div className="relative">
+              <select
+                value={formData.service_type_id}
+                onChange={(e) => handleServiceTypeChange(e.target.value)}
+                onBlur={() => handleBlur('service_type_id')}
+                className={`w-full px-4 py-3 pr-10 border rounded-lg outline-none transition ${
+                  touched.service_type_id && validationErrors.service_type_id
+                    ? 'border-red-500 focus:ring-2 focus:ring-red-500'
+                    : touched.service_type_id && formData.service_type_id
+                    ? 'border-green-500 focus:ring-2 focus:ring-green-500'
+                    : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                }`}
+                disabled={loadingServiceTypes}
+              >
+                <option value="">
+                  {loadingServiceTypes ? 'Cargando tipos...' : 'Selecciona un tipo de servicio'}
+                </option>
+                {serviceTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.icon ? `${type.icon} ${type.name}` : type.name}
+                  </option>
+                ))}
+              </select>
+              {touched.service_type_id && formData.service_type_id && (
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  {validationErrors.service_type_id ? (
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Check className="h-5 w-5 text-green-500" />
+                  )}
+                </div>
+              )}
+            </div>
+            {touched.service_type_id && validationErrors.service_type_id && (
+              <p className="text-xs text-red-600 mt-1">{validationErrors.service_type_id}</p>
+            )}
+            {touched.service_type_id && !validationErrors.service_type_id && formData.service_type_id && (
+              <p className="text-xs text-green-600 mt-1">✓ Tipo seleccionado</p>
+            )}
+            {serviceTypes.length === 0 && !loadingServiceTypes && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ No hay tipos de servicio activos. Crea uno primero en Tipos de Servicio.
+              </p>
+            )}
+          </div>
+
           {/* Nombre */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -318,7 +417,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
                     ? 'border-green-500 focus:ring-2 focus:ring-green-500'
                     : 'border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                 }`}
-                placeholder="Ej: Baño, Ducha, Locker 2 horas"
+                placeholder="Ej: Baño VIP, Ducha Deluxe, Locker 2 horas"
                 required
               />
               {touched.name && formData.name && (
@@ -345,25 +444,6 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
             <p className="text-xs text-gray-500 mt-1">
               Entre 3 y 50 caracteres
             </p>
-          </div>
-
-          {/* Tipo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <div className="flex items-center gap-2">
-                <Package size={16} />
-                Tipo de Servicio
-              </div>
-            </label>
-            <select
-              value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-            >
-              <option value="bano">🚽 Baño</option>
-              <option value="ducha">🚿 Ducha</option>
-              <option value="locker">🔐 Locker</option>
-            </select>
           </div>
 
           {/* Precio */}
@@ -434,7 +514,7 @@ export default function ProductModal({ product, onClose, onSuccess }: ProductMod
             </button>
             <button
               type="submit"
-              disabled={loading || !isFormValid || categories.length === 0}
+              disabled={loading || !isFormValid || categories.length === 0 || serviceTypes.length === 0}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Guardando...' : (product ? 'Actualizar' : 'Crear Producto')}

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCacheStore } from '../store/cacheStore';
 import { usePlanLimits } from '../hooks/usePlanLimits';
-import { productsService } from '../services/api';
+import { productsService, serviceTypesService } from '../services/api';
+import type { ServiceType } from '../types';
 import { Package, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Lock, Trash2, RotateCcw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ProductModal from '../components/ProductModal';
@@ -19,7 +20,12 @@ interface Product {
   id: string;
   name: string;
   price: number;
-  type: 'bano' | 'ducha' | 'locker';
+  service_type_id: string;
+  service_types?: {
+    id: string;
+    name: string;
+    icon?: string;
+  };
   active: boolean;
   created_at: string;
   deleted_at?: string | null;
@@ -51,7 +57,8 @@ export default function ProductManagement() {
     planLimits
   } = usePlanLimits();
 
-  const [products, setProductsState] = useState<Product[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
+  const [products, setProductsLocal] = useState<Product[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
     total: 0,
     page: 1,
@@ -82,7 +89,7 @@ export default function ProductManagement() {
     initialLimit: 10,
     initialFilters: {
       search: '',
-      type: 'all',
+      service_type_id: 'all',
       active: 'all',
       show_deleted: 'false'
     }
@@ -97,7 +104,7 @@ const loadProducts = async () => {
       //   const cachedProducts = getProducts();
       //   if (cachedProducts) {
       //     console.log('✨ Productos cargados desde caché');
-      //     setProductsState(cachedProducts);
+      //     setProductsLocal(cachedProducts);
       //     setPagination({
       //       total: cachedProducts.length,
       //       page: 1,
@@ -114,12 +121,12 @@ const loadProducts = async () => {
       const response = await productsService.getAll(params);
       
       if (response.data.success) {
-        setProductsState(response.data.data);
+        setProductsLocal(response.data.data);
         setPagination(response.data.pagination);
         
         // CACHÉ DESACTIVADO TEMPORALMENTE
         // if (!hasActiveFilters() && page === 1 && limit === 10 && filters.show_deleted === 'false') {
-        //   setProducts(response.data.data);
+        //   setProductsLocal(response.data.data);
         //   console.log('💾 Productos guardados en caché');
         // }
       }
@@ -134,10 +141,24 @@ const loadProducts = async () => {
     }
   };
 
-  // Recargar cuando cambien los filtros o la página
-useEffect(() => {
-    loadProducts();  // ← Pasar true para forzar refresh
-  }, [page, limit, filters.search, filters.type, filters.active, filters.show_deleted]);
+  // Cargar tipos de servicio
+  const loadServiceTypes = async () => {
+    try {
+      const response = await serviceTypesService.getAll();
+      if (response.data.success) {
+        const activeTypes = response.data.data.filter((t: ServiceType) => t.active);
+        setServiceTypes(activeTypes);
+      }
+    } catch (error) {
+      console.error('Error al cargar tipos de servicio:', error);
+    }
+  };
+
+    // Recargar cuando cambien los filtros o la página
+  useEffect(() => {
+    loadProducts();
+    loadServiceTypes();
+  }, [page, limit, filters.search, filters.service_type_id, filters.active, filters.show_deleted]);
 
   const handleCreateProduct = () => {
     // Verificar si puede agregar más productos
@@ -265,33 +286,16 @@ useEffect(() => {
     });
   };
 
-  const getTypeBadgeColor = (type: string) => {
-    switch (type) {
-      case 'bano': return 'bg-blue-100 text-blue-800';
-      case 'ducha': return 'bg-green-100 text-green-800';
-      case 'locker': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'bano': return 'Baño';
-      case 'ducha': return 'Ducha';
-      case 'locker': return 'Locker';
-      default: return type;
-    }
-  };
-
   // Verificar si el botón de crear producto está deshabilitado
   const isCreateProductDisabled = !canAddProducts(pagination.total);
 
   // Opciones para los filtros
   const typeOptions = [
     { value: 'all', label: 'Todos los tipos' },
-    { value: 'bano', label: 'Baño' },
-    { value: 'ducha', label: 'Ducha' },
-    { value: 'locker', label: 'Locker' }
+    ...serviceTypes.map(type => ({
+      value: type.id,
+      label: type.icon ? `${type.icon} ${type.name}` : type.name
+    }))
   ];
 
   const activeOptions = [
@@ -411,6 +415,21 @@ useEffect(() => {
             >
               📦 Productos
             </button>
+            <button
+              onClick={() => navigate('/tipos-servicio')}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                location.pathname === '/tipos-servicio'
+                  ? 'text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              style={
+                location.pathname === '/tipos-servicio'
+                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                  : {}
+              }
+            >
+              🏷️ Tipos de Servicio
+            </button>
           </div>
         </div>
       </header>
@@ -473,9 +492,9 @@ useEffect(() => {
 
             {/* Filtro por tipo */}
             <FilterSelect
-              label="Tipo"
-              value={filters.type}
-              onChange={(value) => updateFilter('type', value)}
+              label="Tipo de Servicio"
+              value={filters.service_type_id}
+              onChange={(value) => updateFilter('service_type_id', value)}
               options={typeOptions}
             />
 
@@ -551,9 +570,14 @@ useEffect(() => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getTypeBadgeColor(product.type)}`}>
-                              {getTypeLabel(product.type)}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {product.service_types?.icon && (
+                                <span className="text-lg">{product.service_types.icon}</span>
+                              )}
+                              <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {product.service_types?.name || 'N/A'}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900 font-semibold">
