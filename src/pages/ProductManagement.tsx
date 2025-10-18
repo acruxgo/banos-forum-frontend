@@ -75,11 +75,9 @@ export default function ProductManagement() {
     page,
     limit,
     updateFilter,
-    clearFilters,
     changePage,
     changeLimit,
     getQueryParams,
-    hasActiveFilters
   } = useTableFilters({
     initialLimit: 10,
     initialFilters: {
@@ -90,7 +88,8 @@ export default function ProductManagement() {
     }
   });
 
-const loadProducts = async (forceRefresh = false) => {
+const loadProducts = async () => {
+
     setLoading(true);
     try {
       // CACHÉ DESACTIVADO TEMPORALMENTE
@@ -137,7 +136,7 @@ const loadProducts = async (forceRefresh = false) => {
 
   // Recargar cuando cambien los filtros o la página
 useEffect(() => {
-    loadProducts(true);  // ← Pasar true para forzar refresh
+    loadProducts();  // ← Pasar true para forzar refresh
   }, [page, limit, filters.search, filters.type, filters.active, filters.show_deleted]);
 
   const handleCreateProduct = () => {
