@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import type { Transaction } from '../types';
-import { transactionsService, shiftsService } from '../services/api';
-import { X, DollarSign, CreditCard, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
+import { transactionsService, shiftsService, reportsService } from '../services/api';
+import { X, DollarSign, CreditCard, AlertTriangle, CheckCircle, TrendingUp, Printer } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
+import { generatePDF, formatDate } from '../utils/pdfExport';
 
 interface CloseShiftModalProps {
   shiftId: string;
@@ -10,10 +12,14 @@ interface CloseShiftModalProps {
 }
 
 export default function CloseShiftModal({ shiftId, onClose, onSuccess }: CloseShiftModalProps) {
+  const business = useAuthStore((state) => state.business);
+  const user = useAuthStore((state) => state.user);
+  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [shiftData, setShiftData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
   const [finalCash, setFinalCash] = useState('');
   const [showArqueo, setShowArqueo] = useState(false);
 
@@ -76,6 +82,78 @@ export default function CloseShiftModal({ shiftId, onClose, onSuccess }: CloseSh
       difference: difference,
       status: difference === 0 ? 'exacto' : difference > 0 ? 'sobrante' : 'faltante'
     };
+  };
+
+  const handlePrintArqueo = async () => {
+    setGeneratingPDF(true);
+    try {
+      const response = await reportsService.getCashClosingReport(shiftId);
+      const reportData = response.data.data;
+      const stats = calculateStats();
+      const arqueo = calculateArqueo();
+
+      // Preparar datos para PDF
+      const headers = ['Producto', 'Cant.', 'Precio Unit.', 'Total', 'Método Pago'];
+      const rows = transactions.map(t => [
+        t.products?.name || 'N/A',
+        t.quantity.toString(),
+        `$${Number(t.unit_price).toFixed(2)}`,
+        `$${Number(t.total).toFixed(2)}`,
+        t.payment_method === 'card' ? 'Tarjeta' : t.payment_method === 'cash' ? 'Efectivo' : 'Transferencia'
+      ]);
+
+      const summary = [
+        { label: 'Cajero', value: user?.name || 'N/A' },
+        { label: 'Inicio de Turno', value: new Date(shiftData.start_time).toLocaleString('es-MX') },
+        { label: 'Cierre de Turno', value: new Date().toLocaleString('es-MX') },
+        { label: '', value: '' },
+        { label: 'Total de Ventas', value: `$${stats.total.toFixed(2)} MXN` },
+        { label: 'Total de Transacciones', value: stats.count.toString() },
+        { label: '', value: '' },
+        { label: '💵 ARQUEO DE CAJA', value: '' },
+        { label: 'Efectivo Inicial', value: `$${stats.initialCash.toFixed(2)} MXN` },
+        { label: 'Ventas en Efectivo', value: `$${stats.cashSales.toFixed(2)} MXN` },
+        { label: 'Efectivo Esperado', value: `$${stats.expectedCash.toFixed(2)} MXN` },
+        { label: 'Efectivo Contado', value: `$${arqueo.finalCash.toFixed(2)} MXN` },
+        { 
+          label: 'Diferencia', 
+          value: `${arqueo.difference >= 0 ? '+' : ''}$${arqueo.difference.toFixed(2)} MXN ${
+            arqueo.status === 'exacto' ? '✅ CUADRADO' :
+            arqueo.status === 'sobrante' ? '⚠️ SOBRANTE' :
+            '❌ FALTANTE'
+          }` 
+        }
+      ];
+
+      // Agregar desglose por método de pago
+      Object.entries(stats.byPaymentMethod).forEach(([method, data]: [string, any]) => {
+        const methodLabel = method === 'card' ? 'Tarjeta' : method === 'cash' ? 'Efectivo' : 'Transferencia';
+        summary.push({
+          label: `${methodLabel}`,
+          value: `$${data.total.toFixed(2)} MXN (${data.count} trans.)`
+        });
+      });
+
+      generatePDF({
+        title: 'Arqueo de Caja',
+        subtitle: `Turno cerrado - ${new Date().toLocaleString('es-MX')}`,
+        business: {
+          name: business?.name || 'Sistema POS',
+          logo_url: business?.logo_url ?? undefined
+        },
+        date: formatDate(new Date()),
+        headers,
+        rows,
+        summary
+      });
+
+      alert('Arqueo de caja generado exitosamente');
+    } catch (error) {
+      console.error('Error al generar arqueo:', error);
+      alert('Error al generar arqueo de caja');
+    } finally {
+      setGeneratingPDF(false);
+    }
   };
 
   const handleCloseShift = async () => {
@@ -295,20 +373,35 @@ export default function CloseShiftModal({ shiftId, onClose, onSuccess }: CloseSh
             </div>
 
             {/* Botones */}
-            <div className="flex gap-4 pt-4 border-t">
-              <button
-                onClick={onClose}
-                className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCloseShift}
-                disabled={closing || !finalCash}
-                className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
-              >
-                {closing ? 'Cerrando...' : 'Cerrar Turno'}
-              </button>
+            <div className="space-y-3">
+              {/* Botón Imprimir Arqueo */}
+              {showArqueo && (
+                <button
+                  onClick={handlePrintArqueo}
+                  disabled={generatingPDF}
+                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
+                >
+                  <Printer size={20} className={generatingPDF ? 'animate-pulse' : ''} />
+                  {generatingPDF ? 'Generando PDF...' : 'Imprimir Arqueo de Caja'}
+                </button>
+              )}
+
+              {/* Botones Cancelar y Cerrar */}
+              <div className="flex gap-4">
+                <button
+                  onClick={onClose}
+                  className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold rounded-lg transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCloseShift}
+                  disabled={closing || !finalCash}
+                  className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition disabled:opacity-50"
+                >
+                  {closing ? 'Cerrando...' : 'Cerrar Turno'}
+                </button>
+              </div>
             </div>
           </div>
         )}

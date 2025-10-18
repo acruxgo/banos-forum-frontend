@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { businessesService } from '../services/api';
-import { Building2, Plus, Edit, Power, LogOut, Key, RefreshCw, Crown, TrendingUp, Package, Users } from 'lucide-react';
+import { Building2, Plus, Edit, Power, LogOut, Key, RefreshCw, Crown, TrendingUp, Package, Users, Trash2 } from 'lucide-react';
 import BusinessModal from '../components/BusinessModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -143,6 +143,31 @@ export default function BusinessManagement() {
           console.error('Error al cambiar estado:', err);
           setToast({
             message: 'Error al cambiar estado de la empresa',
+            type: 'error'
+          });
+        }
+        setShowConfirm(false);
+      }
+    });
+    setShowConfirm(true);
+  };
+
+  const handleDeleteBusiness = async (business: Business) => {
+    setConfirmAction({
+      title: '⚠️ Eliminar Empresa',
+      message: `¿Estás COMPLETAMENTE SEGURO de eliminar "${business.name}"? Esta acción eliminará TODOS los datos asociados: usuarios, productos, transacciones, etc. ESTA ACCIÓN NO SE PUEDE DESHACER.`,
+      onConfirm: async () => {
+        try {
+          await businessesService.delete(business.id);
+          setToast({
+            message: `Empresa "${business.name}" eliminada exitosamente`,
+            type: 'success'
+          });
+          loadBusinesses();
+        } catch (err) {
+          console.error('Error al eliminar empresa:', err);
+          setToast({
+            message: 'Error al eliminar empresa',
             type: 'error'
           });
         }
@@ -474,16 +499,23 @@ export default function BusinessManagement() {
                             >
                               <Edit size={18} />
                             </button>
-                            <button
+<button
                               onClick={() => handleToggleActive(business)}
                               className={`transition ${
                                 business.active 
-                                  ? 'text-red-600 hover:text-red-900' 
+                                  ? 'text-orange-600 hover:text-orange-900' 
                                   : 'text-green-600 hover:text-green-900'
                               }`}
                               title={business.active ? 'Desactivar' : 'Activar'}
                             >
                               <Power size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBusiness(business)}
+                              className="text-red-600 hover:text-red-900 transition"
+                              title="Eliminar empresa permanentemente"
+                            >
+                              <Trash2 size={18} />
                             </button>
                           </div>
                         </td>

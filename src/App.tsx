@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
 import Login from './pages/Login';
 import CajaPOS from './pages/CajaPOS';
 import SupervisorDashboard from './pages/SupervisorDashboard';
@@ -12,6 +13,9 @@ import BusinessManagement from './pages/BusinessManagement';
 function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
+
+  // Timeout de sesión: 30 minutos de inactividad
+  useSessionTimeout(30);
 
   if (!isAuthenticated) {
     return <Login />;

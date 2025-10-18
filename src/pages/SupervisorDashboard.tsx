@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import type { Shift, Transaction } from '../types';
 import { useAuthStore } from '../store/authStore';
-import { shiftsService, transactionsService } from '../services/api';
-import { Users, DollarSign, TrendingUp, Clock, LogOut, RefreshCw, Key } from 'lucide-react';
+import { shiftsService, transactionsService, reportsService } from '../services/api';
+import { Users, DollarSign, TrendingUp, Clock, LogOut, RefreshCw, Key, FileText, FileDown } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
+import { generatePDF, formatDate as formatPDFDate } from '../utils/pdfExport';
 
 export default function SupervisorDashboard() {
   const user = useAuthStore((state) => state.user);
+  const business = useAuthStore((state) => state.business);
   const logout = useAuthStore((state) => state.logout);
   
   const [activeShifts, setActiveShifts] = useState<Shift[]>([]);
@@ -14,6 +16,7 @@ export default function SupervisorDashboard() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -67,6 +70,72 @@ export default function SupervisorDashboard() {
     logout();
   };
 
+  // Generar reporte diario
+  const handleDailyReport = async () => {
+    setGeneratingReport(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await reportsService.getDailyReport(today);
+      const reportData = response.data.data;
+
+      // Preparar datos para PDF
+      const headers = ['Fecha', 'Producto', 'Cant.', 'Precio Unit.', 'Total', 'Método', 'Empleado'];
+      const rows = reportData.transactions.map((t: any) => [
+        new Date(t.created_at).toLocaleString('es-MX', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
+        t.products?.name || 'N/A',
+        t.quantity.toString(),
+        `$${Number(t.unit_price).toFixed(2)}`,
+        `$${Number(t.total).toFixed(2)}`,
+        t.payment_method === 'card' ? 'Tarjeta' : t.payment_method === 'cash' ? 'Efectivo' : 'Transferencia',
+        t.users?.name || 'N/A'
+      ]);
+
+      const summary = [
+        { label: 'Total de Ventas', value: `$${reportData.summary.totalSales.toFixed(2)} MXN` },
+        { label: 'Total de Transacciones', value: reportData.summary.totalTransactions.toString() },
+        { label: 'Ticket Promedio', value: `$${reportData.summary.averageTicket.toFixed(2)} MXN` }
+      ];
+
+      // Agregar desglose por método de pago
+      if (reportData.byPaymentMethod) {
+        Object.entries(reportData.byPaymentMethod).forEach(([method, data]: [string, any]) => {
+          summary.push({
+            label: `${method.charAt(0).toUpperCase() + method.slice(1)}`,
+            value: `$${data.total.toFixed(2)} MXN (${data.count} trans.)`
+          });
+        });
+      }
+
+      generatePDF({
+        title: 'Reporte Diario de Ventas',
+        subtitle: `Fecha: ${new Date().toLocaleDateString('es-MX', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        })}`,
+        business: {
+          name: business?.name || 'Sistema POS',
+          logo_url: business?.logo_url ?? undefined
+        },
+        date: formatPDFDate(new Date()),
+        headers,
+        rows,
+        summary
+      });
+
+      alert('Reporte generado exitosamente');
+    } catch (error) {
+      console.error('Error al generar reporte:', error);
+      alert('Error al generar reporte diario');
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString('es-MX', {
       hour: '2-digit',
@@ -93,6 +162,15 @@ export default function SupervisorDashboard() {
             <p className="text-sm text-gray-600">{user?.name}</p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={handleDailyReport}
+              disabled={generatingReport}
+              className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition disabled:opacity-50"
+              title="Generar Reporte Diario"
+            >
+              <FileDown size={20} className={generatingReport ? 'animate-pulse' : ''} />
+              Reporte Diario
+            </button>
             <button
               onClick={() => setShowChangePasswordModal(true)}
               className="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition"

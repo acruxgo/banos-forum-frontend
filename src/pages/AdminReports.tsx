@@ -75,6 +75,7 @@ export default function AdminReports() {
     page,
     limit,
     updateFilter,
+    debouncedFilters,
     clearFilters,
     changePage,
     changeLimit,
@@ -164,6 +165,8 @@ export default function AdminReports() {
     setLoading(true);
     try {
       const params = getQueryParams();
+
+      console.log('🔍 Filtros enviados:', params); 
       
       // Si hay filtro de empleado, agregarlo
       if (filters.employee !== 'all') {
@@ -190,9 +193,9 @@ export default function AdminReports() {
   }, []);
 
   // Recargar cuando cambien los filtros o la página
-  useEffect(() => {
+useEffect(() => {
     loadTransactions();
-  }, [page, limit, filters.search, filters.payment_method, filters.status, filters.date_from, filters.date_to, filters.employee]);
+  }, [page, limit, debouncedFilters.search, debouncedFilters.payment_method, debouncedFilters.status, debouncedFilters.date_from, debouncedFilters.date_to, debouncedFilters.employee]);
 
   const handlePasswordChanged = () => {
     alert('Contraseña actualizada. Por favor, inicia sesión nuevamente.');
@@ -293,7 +296,7 @@ export default function AdminReports() {
   const averageTicket = dataForStats.length > 0 ? totalSales / dataForStats.length : 0;
 
   // Ventas por día (últimos 30 días) - usar transacciones según filtro
-  const salesByDay = () => {
+const salesByDay = () => {
     const last30Days = dataForStats.filter(t => {
       const date = new Date(t.created_at);
       const now = new Date();
@@ -307,7 +310,10 @@ export default function AdminReports() {
       grouped[date] = (grouped[date] || 0) + Number(t.total);
     });
 
-    return Object.entries(grouped).map(([date, total]) => ({ date, total })).slice(-15); // Últimos 15 días
+    return Object.entries(grouped)
+      .map(([date, total]) => ({ date, total }))
+      .slice(-15)
+      .reverse(); // ← Invertir para mostrar el día más reciente a la derecha
   };
 
   // Ventas por producto - usar transacciones según filtro

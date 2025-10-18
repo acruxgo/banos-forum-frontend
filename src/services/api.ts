@@ -88,6 +88,7 @@ export const businessesService = {
   }) => api.post('/businesses', businessData),
   update: (id: string, businessData: any) => api.put(`/businesses/${id}`, businessData),
   toggleActive: (id: string) => api.patch(`/businesses/${id}/toggle-active`),
+  delete: (id: string) => api.delete(`/businesses/${id}`),
 };
 
 // Servicios de usuarios
@@ -143,4 +144,10 @@ export const ticketsService = {
   }) => api.post('/tickets', ticketData),
   markPrinted: (id: string) => api.patch(`/tickets/${id}/mark-printed`),
   markSent: (id: string) => api.patch(`/tickets/${id}/mark-sent`),
+};
+
+// Servicios de reportes
+export const reportsService = {
+  getDailyReport: (date?: string) => api.get('/reports/daily', { params: { date } }),
+  getCashClosingReport: (shift_id: string) => api.post('/reports/cash-closing', { shift_id })
 };
