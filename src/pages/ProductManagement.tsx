@@ -430,6 +430,21 @@ const loadProducts = async () => {
             >
               🏷️ Tipos de Servicio
             </button>
+            <button
+            onClick={() => window.location.href = '/tipos-servicio'}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              window.location.pathname === '/tipos-servicio'
+                ? 'text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            style={
+              window.location.pathname === '/tipos-servicio'
+                ? { backgroundColor: business?.primary_color || '#3B82F6' }
+                : {}
+            }
+          >
+            🏷️ Tipos de Servicio
+          </button>
           </div>
         </div>
       </header>

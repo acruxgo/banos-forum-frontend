@@ -121,12 +121,16 @@ export default function CajaPOS() {
     return cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   };
 
-  const processSale = async () => {
+    const processSale = async () => {
     if (!currentShift || cart.length === 0) return;
 
     setConfirmAction({
       title: 'Procesar Venta',
-      message: `¿Confirmar venta por $${calculateTotal().toFixed(2)} con ${paymentMethod === 'card' ? 'tarjeta' : paymentMethod === 'transfer' ? 'transferencia' : 'efectivo'}?`,
+      message: `¿Confirmar venta por $${calculateTotal().toFixed(2)} con ${
+        paymentMethod === 'card' ? 'tarjeta' : 
+        paymentMethod === 'transfer' ? 'transferencia' : 
+        'efectivo'
+      }?`,
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -137,12 +141,14 @@ export default function CajaPOS() {
               product_id: item.product.id,
               quantity: item.quantity,
               unit_price: item.product.price,
+              total: item.product.price * item.quantity, // ✅ AGREGADO
               payment_method: paymentMethod,
-              created_by: user?.id,
+              status: 'completed', // ✅ AGREGADO
+              created_by: user?.id || '', // ✅ AGREGADO fallback
             })
           );
           
-          await Promise.all(transactionPromises);
+          const transactionResults = await Promise.all(transactionPromises);
 
           // 2. Generar ticket
           const ticketItems = cart.map((item) => ({
@@ -156,6 +162,7 @@ export default function CajaPOS() {
           const total = subtotal;
 
           const ticketResponse = await ticketsService.create({
+            transaction_id: transactionResults[0]?.data?.data?.id, // ✅ Usar ID de primera transacción
             items: ticketItems,
             subtotal,
             total,
@@ -174,15 +181,17 @@ export default function CajaPOS() {
             type: 'success'
           });
           setCart([]);
-        } catch (err) {
+          setShowConfirm(false);
+        } catch (err: any) {
           console.error('Error al procesar venta:', err);
+          const errorMessage = err.response?.data?.message || 'Error al procesar la venta';
           setToast({
-            message: 'Error al procesar la venta',
+            message: errorMessage,
             type: 'error'
           });
+          setShowConfirm(false);
         } finally {
           setLoading(false);
-          setShowConfirm(false);
         }
       }
     });
@@ -359,7 +368,7 @@ export default function CajaPOS() {
                   <p className="text-2xl font-bold mt-2" style={{ color: business?.primary_color || '#3B82F6' }}>
                     ${product.price}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1 capitalize">{product.type}</p>
+                  <p className="text-xs text-gray-500 mt-1 capitalize">{product.service_types?.name || 'N/A'}</p>
                 </button>
               ))}
             </div>

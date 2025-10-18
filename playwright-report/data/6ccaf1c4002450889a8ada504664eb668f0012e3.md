@@ -1,0 +1,156 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e6]:
+          - generic [ref=e7]:
+            - img [ref=e8]
+            - generic [ref=e10]:
+              - heading "Gestión de Productos" [level=1] [ref=e11]
+              - paragraph [ref=e12]: Admin Test - Administrador
+          - generic [ref=e13]:
+            - button "Cambiar Contraseña" [ref=e14] [cursor=pointer]:
+              - img [ref=e15]
+            - button "Salir" [ref=e19] [cursor=pointer]:
+              - img [ref=e20]
+              - text: Salir
+        - generic [ref=e23]:
+          - button "📊 Reportes" [ref=e24] [cursor=pointer]
+          - button "👥 Usuarios" [ref=e25] [cursor=pointer]
+          - button "📁 Categorías" [ref=e26] [cursor=pointer]
+          - button "📦 Productos" [ref=e27] [cursor=pointer]
+          - button "🏷️ Tipos de Servicio" [ref=e28] [cursor=pointer]
+    - generic [ref=e29]:
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - img [ref=e33]
+          - generic [ref=e37]:
+            - heading "Productos y Servicios (1)" [level=2] [ref=e38]
+            - paragraph [ref=e39]: "Límite de tu plan: 1 / 100"
+        - generic [ref=e40]:
+          - button "Actualizar" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - text: Actualizar
+          - button "Nuevo Producto" [active] [ref=e47] [cursor=pointer]:
+            - img [ref=e48]
+            - text: Nuevo Producto
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e52]: Buscar
+          - generic [ref=e53]:
+            - generic:
+              - img
+            - textbox "Buscar por nombre..." [ref=e54]
+        - generic [ref=e55]:
+          - generic [ref=e56]: Tipo de Servicio
+          - generic [ref=e57]:
+            - generic:
+              - img
+            - combobox [ref=e58]:
+              - option "Todos los tipos" [selected]
+              - option "Baño"
+              - option "Ducha"
+        - generic [ref=e59]:
+          - generic [ref=e60]: Estado
+          - generic [ref=e61]:
+            - generic:
+              - img
+            - combobox [ref=e62]:
+              - option "Todos los estados" [selected]
+              - option "Activos"
+              - option "Inactivos"
+      - generic [ref=e63]:
+        - table [ref=e65]:
+          - rowgroup [ref=e66]:
+            - row "Nombre Tipo Precio Estado Fecha Creación Acciones" [ref=e67]:
+              - cell "Nombre" [ref=e68]
+              - cell "Tipo" [ref=e69]
+              - cell "Precio" [ref=e70]
+              - cell "Estado" [ref=e71]
+              - cell "Fecha Creación" [ref=e72]
+              - cell "Acciones" [ref=e73]
+          - rowgroup [ref=e74]:
+            - row "bañotest Baño $15.00 MXN Activo 18/10/2025" [ref=e75]:
+              - cell "bañotest" [ref=e76]:
+                - generic [ref=e78]: bañotest
+              - cell "Baño" [ref=e79]:
+                - generic [ref=e81]: Baño
+              - cell "$15.00 MXN" [ref=e82]:
+                - generic [ref=e83]: $15.00 MXN
+              - cell "Activo" [ref=e84]:
+                - generic [ref=e85]: Activo
+              - cell "18/10/2025" [ref=e86]
+              - cell [ref=e87]:
+                - generic [ref=e88]:
+                  - button "Editar" [ref=e89] [cursor=pointer]:
+                    - img [ref=e90]
+                  - button "Desactivar" [ref=e93] [cursor=pointer]:
+                    - img [ref=e94]
+                  - button "Eliminar" [ref=e96] [cursor=pointer]:
+                    - img [ref=e97]
+        - generic [ref=e100]:
+          - generic [ref=e101]: Mostrando 1 a 1 de 1 resultados
+          - generic [ref=e102]:
+            - generic [ref=e103]:
+              - generic [ref=e104]: "Por página:"
+              - combobox [ref=e105]:
+                - option "10" [selected]
+                - option "20"
+                - option "50"
+                - option "100"
+            - button "Anterior" [disabled] [ref=e106]:
+              - img [ref=e107]
+              - text: Anterior
+            - generic [ref=e109]: Página 1 de 1
+            - button "Siguiente" [disabled] [ref=e110]:
+              - text: Siguiente
+              - img [ref=e111]
+    - generic [ref=e114]:
+      - generic [ref=e115]:
+        - generic [ref=e116]:
+          - img [ref=e117]
+          - heading "Nuevo Producto" [level=2] [ref=e121]
+        - button [ref=e122] [cursor=pointer]:
+          - img [ref=e123]
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - generic [ref=e129]:
+            - img [ref=e130]
+            - text: Categoría
+            - generic [ref=e132]: "*"
+          - combobox [ref=e134]:
+            - option "Selecciona una categoría" [selected]
+            - option "Test"
+        - generic [ref=e135]:
+          - generic [ref=e137]:
+            - img [ref=e138]
+            - text: Tipo de Servicio
+            - generic [ref=e142]: "*"
+          - combobox [ref=e144]:
+            - option "Selecciona un tipo de servicio" [selected]
+            - option "Baño"
+            - option "Ducha"
+        - generic [ref=e145]:
+          - generic [ref=e147]:
+            - img [ref=e148]
+            - text: Nombre del Producto/Servicio
+            - generic [ref=e151]: "*"
+          - 'textbox "Ej: Baño VIP, Ducha Deluxe, Locker 2 horas" [ref=e153]'
+          - paragraph [ref=e154]: Entre 3 y 50 caracteres
+        - generic [ref=e155]:
+          - generic [ref=e157]:
+            - img [ref=e158]
+            - text: Precio (MXN)
+            - generic [ref=e160]: "*"
+          - generic [ref=e161]:
+            - generic [ref=e162]: $
+            - spinbutton [ref=e163]
+          - paragraph [ref=e164]: Entre $0.01 y $999,999.00
+        - generic [ref=e165]:
+          - button "Cancelar" [ref=e166] [cursor=pointer]
+          - button "Crear Producto" [disabled] [ref=e167]
+  - generic [ref=e168]: "0"
+```
