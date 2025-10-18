@@ -12,7 +12,6 @@ import UpgradeModal from '../components/UpgradeModal';
 import Toast from '../components/Toast';
 import { SearchBar } from '../components/common/SearchBar';
 import { FilterSelect } from '../components/common/FilterSelect';
-import { FilterActions } from '../components/common/FilterActions';
 import { Pagination } from '../components/common/Pagination';
 import { useTableFilters } from '../hooks/useTableFilters';
 
@@ -41,7 +40,7 @@ export default function ProductManagement() {
   const location = useLocation();
 
   // Caché
-  const { getProducts, setProducts, invalidateProducts } = useCacheStore();
+  const { invalidateProducts } = useCacheStore();
 
   // Plan limits
   const { 

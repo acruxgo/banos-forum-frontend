@@ -41,7 +41,7 @@ export default function UserManagement() {
   const location = useLocation();
 
   // Caché
-  const { getUsers, setUsers, invalidateUsers } = useCacheStore();
+  const { invalidateUsers } = useCacheStore();
 
   // Plan limits
   const { 
@@ -92,23 +92,7 @@ export default function UserManagement() {
   });
 
   // Cargar usuarios con caché
-const loadUsers = async (forceRefresh = false) => {
-    // CACHÉ DESACTIVADO TEMPORALMENTE
-    // if (!forceRefresh && !hasActiveFilters() && page === 1 && filters.show_deleted === 'false') {
-    //   const cachedUsers = getUsers();
-    //   if (cachedUsers && cachedUsers.length > 0) {
-    //     console.log('✨ Usuarios cargados desde caché');
-    //     setLocalUsers(cachedUsers);
-    //     setPagination({
-    //       total: cachedUsers.length,
-    //       page: 1,
-    //       limit: limit,
-    //       totalPages: Math.ceil(cachedUsers.length / limit)
-    //     });
-    //     return;
-    //   }
-    // }
-
+const loadUsers = async () => {
     setLoading(true);
     try {
       const params = getQueryParams();
@@ -117,12 +101,6 @@ const loadUsers = async (forceRefresh = false) => {
       if (response.data.success) {
         setLocalUsers(response.data.data);
         setPagination(response.data.pagination);
-        
-// CACHÉ DESACTIVADO TEMPORALMENTE
-        if (false) {
-          setUsers(response.data.data);
-          console.log('💾 Usuarios guardados en caché');
-        }
       }
     } catch (error) {
       console.error('Error al cargar usuarios:', error);
@@ -135,9 +113,9 @@ const loadUsers = async (forceRefresh = false) => {
     }
   };
 
-  // Recargar cuando cambien los filtros o la página
-useEffect(() => {
-    loadUsers(true);  // ← Pasar true para forzar refresh
+// Recargar cuando cambien los filtros o la página
+  useEffect(() => {
+    loadUsers();  // ← Sin parámetro
   }, [page, limit, filters.search, filters.role, filters.active, filters.show_deleted]);
 
   const handleCreateUser = () => {
@@ -173,7 +151,7 @@ useEffect(() => {
           });
           // Invalidar caché y recargar
           invalidateUsers();
-          loadUsers(true);
+          loadUsers();  // ← Sin parámetro
         } catch (error) {
           setToast({
             message: 'Error al cambiar estado del usuario',
@@ -186,7 +164,7 @@ useEffect(() => {
     setShowConfirm(true);
   };
 
-const handleDeleteUser = async (user: User) => {
+  const handleDeleteUser = async (user: User) => {
     setConfirmAction({
       title: 'Eliminar Usuario',
       message: `¿Estás seguro de eliminar a ${user.name}? El usuario será marcado como eliminado pero podrá ser restaurado después.`,
@@ -198,7 +176,7 @@ const handleDeleteUser = async (user: User) => {
             type: 'success'
           });
           invalidateUsers();
-          loadUsers(true);
+          loadUsers();  // ← Sin parámetro
         } catch (error) {
           setToast({
             message: 'Error al eliminar usuario',
@@ -223,7 +201,7 @@ const handleDeleteUser = async (user: User) => {
             type: 'success'
           });
           invalidateUsers();
-          loadUsers(true);
+          loadUsers();  // ← Sin parámetro
         } catch (error) {
           setToast({
             message: 'Error al restaurar usuario',
@@ -245,7 +223,7 @@ const handleDeleteUser = async (user: User) => {
     });
     // Invalidar caché y recargar
     invalidateUsers();
-    loadUsers(true);
+    loadUsers();  // ← Sin parámetro
   };
 
   const handlePasswordChanged = () => {
@@ -260,7 +238,7 @@ const handleDeleteUser = async (user: User) => {
 
   const handleRefresh = () => {
     invalidateUsers();
-    loadUsers(true);
+    loadUsers();  // ← Sin parámetro
     setToast({
       message: 'Datos actualizados',
       type: 'info'
