@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { serviceTypesService } from '../services/api';
 import type { ServiceType } from '../types';
-import { Tag, Plus, Edit, Power, LogOut, Key, Trash2, Package } from 'lucide-react';
+import {Plus, Edit, Power, LogOut, Key, Trash2, Package } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 
 export default function ServiceTypeManagement() {
