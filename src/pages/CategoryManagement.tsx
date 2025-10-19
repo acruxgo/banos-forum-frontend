@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { categoriesService } from '../services/api';
 import { FolderOpen, Plus, Edit, Power, LogOut, Key, RefreshCw, BarChart3, Trash2 } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import CategoryModal from '../components/CategoryModal';
 import ConfirmModal from '../components/ConfirmModal';
@@ -12,7 +11,7 @@ import { FilterSelect } from '../components/common/FilterSelect';
 import { FilterActions } from '../components/common/FilterActions';
 import { Pagination } from '../components/common/Pagination';
 import { useTableFilters } from '../hooks/useTableFilters';
-
+import AdminNavigation from '../components/AdminNavigation';
 
 interface Category {
   id: string;
@@ -33,8 +32,6 @@ export default function CategoryManagement() {
   const currentUser = useAuthStore((state) => state.user);
   const business = useAuthStore((state) => state.business);
   const logout = useAuthStore((state) => state.logout);
-  const navigate = useNavigate();
-  const location = useLocation();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({
@@ -231,82 +228,8 @@ export default function CategoryManagement() {
           </div>
 
           {/* Menú de navegación */}
-          <div className="flex gap-2 mt-4 border-t pt-4">
-            <button
-              onClick={() => navigate('/reportes')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                location.pathname === '/reportes'
-                  ? 'text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              style={
-                location.pathname === '/reportes'
-                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                  : {}
-              }
-            >
-              📊 Reportes
-            </button>
-            <button
-              onClick={() => navigate('/usuarios')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                location.pathname === '/usuarios'
-                  ? 'text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              style={
-                location.pathname === '/usuarios'
-                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                  : {}
-              }
-            >
-              👥 Usuarios
-            </button>
-            <button
-              onClick={() => navigate('/categorias')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                location.pathname === '/categorias'
-                  ? 'text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              style={
-                location.pathname === '/categorias'
-                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                  : {}
-              }
-            >
-              📁 Categorías
-            </button>
-            <button
-              onClick={() => navigate('/productos')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                location.pathname === '/productos'
-                  ? 'text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              style={
-                location.pathname === '/productos'
-                  ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                  : {}
-              }
-            >
-              📦 Productos
-            </button>
-            <button
-            onClick={() => window.location.href = '/tipos-servicio'}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              window.location.pathname === '/tipos-servicio'
-                ? 'text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-            style={
-              window.location.pathname === '/tipos-servicio'
-                ? { backgroundColor: business?.primary_color || '#3B82F6' }
-                : {}
-            }
-          >
-            🏷️ Tipos de Servicio
-          </button>
+          <div className="mt-4 border-t pt-4">
+            <AdminNavigation />
           </div>
         </div>
       </header>
